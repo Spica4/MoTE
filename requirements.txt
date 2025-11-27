@@ -1,0 +1,21 @@
+# Core dependencies
+torch>=2.0.0
+torchvision>=0.15.0
+numpy>=1.24.0
+pillow>=9.0.0
+
+# MONAI for 3D medical image processing
+monai>=1.3.0
+nibabel>=5.0.0  # For NIfTI file handling
+
+# Training utilities
+timm>=0.9.0  # For ViT models
+tqdm>=4.65.0
+
+# Data handling
+scipy>=1.10.0
+scikit-learn>=1.3.0
+
+# Optional: for better visualization
+matplotlib>=3.7.0
+tensorboard>=2.13.0

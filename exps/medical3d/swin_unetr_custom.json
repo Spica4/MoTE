@@ -1,0 +1,49 @@
+{
+    "prefix": "Custom 3D Medical Segmentation",
+    "dataset": "medical3d",
+    "data_dir": "/path/to/your/dataset",
+    "memory_size": 0,
+    "memory_per_class": 0,
+    "fixed_memory": false,
+    "shuffle": false,
+    "init_cls": 2,
+    "increment": 1,
+    "model_name": "mote_seg",
+    "backbone_type": "swin_unetr_mote_base",
+    "device": ["0"],
+    "seed": [1993],
+
+    "init_epochs": 100,
+    "init_lr": 0.0001,
+    "later_epochs": 50,
+    "later_lr": 0.00005,
+    "batch_size": 2,
+    "weight_decay": 0.00001,
+    "min_lr": 0.000001,
+    "optimizer": "adamw",
+    "scheduler": "cosine",
+    "pretrained": true,
+
+    "ffn_num": 64,
+    "d_model": 768,
+    "use_diagonal": false,
+    "alpha": 0.005,
+    "use_init_ptm": false,
+    "beta": 0,
+
+    "roi_size": [96, 96, 96],
+    "sw_batch_size": 4,
+    "overlap": 0.5,
+    "use_dice_ce": true,
+    "val_interval": 5,
+
+    "moni_adam": false,
+    "adapter_num": -1,
+    "print_forget": true,
+
+    "num_classes": 5,
+    "in_channels": 1,
+    "task_type": "segmentation",
+
+    "_comment": "Adjust num_classes, in_channels, roi_size, and data_dir for your specific dataset"
+}

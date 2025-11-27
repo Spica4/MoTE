@@ -4,6 +4,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from utils.data import iCIFAR10, iCIFAR100, iImageNet100, iImageNet1000, iCIFAR224, iImageNetR,iImageNetA,CUB, objectnet, omnibenchmark, vtab
+from utils.data_3d import BTSDataset, AbdominalDataset, CustomMedical3D
 
 
 class DataManager(object):
@@ -73,12 +74,22 @@ class DataManager(object):
             data.append(appendent_data)
             targets.append(appendent_targets)
 
-        data, targets = np.concatenate(data), np.concatenate(targets)
+        if self.is_3d:
+            # For 3D data, concatenation is simple list concatenation
+            # since data is list of dictionaries
+            all_data = []
+            all_targets = []
+            for d, t in zip(data, targets):
+                all_data.extend(d if isinstance(d, list) else [d])
+                all_targets.extend(t if isinstance(t, list) else [t])
+            data, targets = all_data, np.array(all_targets)
+        else:
+            data, targets = np.concatenate(data), np.concatenate(targets)
 
         if ret_data:
-            return data, targets, DummyDataset(data, targets, trsf, self.use_path)
+            return data, targets, DummyDataset(data, targets, trsf, self.use_path, self.is_3d)
         else:
-            return DummyDataset(data, targets, trsf, self.use_path)
+            return DummyDataset(data, targets, trsf, self.use_path, self.is_3d)
 
     def get_dataset_with_split(
         self, indices, source, mode, appendent=None, val_samples_per_class=0
@@ -127,14 +138,30 @@ class DataManager(object):
                 train_data.append(append_data[train_indx])
                 train_targets.append(append_targets[train_indx])
 
-        train_data, train_targets = np.concatenate(train_data), np.concatenate(
-            train_targets
-        )
-        val_data, val_targets = np.concatenate(val_data), np.concatenate(val_targets)
+        if self.is_3d:
+            # For 3D data, flatten the list structure
+            train_data_flat = []
+            train_targets_flat = []
+            for d, t in zip(train_data, train_targets):
+                train_data_flat.extend(d if isinstance(d, list) else [d])
+                train_targets_flat.extend(t if isinstance(t, list) else [t])
+            train_data, train_targets = train_data_flat, np.array(train_targets_flat)
+
+            val_data_flat = []
+            val_targets_flat = []
+            for d, t in zip(val_data, val_targets):
+                val_data_flat.extend(d if isinstance(d, list) else [d])
+                val_targets_flat.extend(t if isinstance(t, list) else [t])
+            val_data, val_targets = val_data_flat, np.array(val_targets_flat)
+        else:
+            train_data, train_targets = np.concatenate(train_data), np.concatenate(
+                train_targets
+            )
+            val_data, val_targets = np.concatenate(val_data), np.concatenate(val_targets)
 
         return DummyDataset(
-            train_data, train_targets, trsf, self.use_path
-        ), DummyDataset(val_data, val_targets, trsf, self.use_path)
+            train_data, train_targets, trsf, self.use_path, self.is_3d
+        ), DummyDataset(val_data, val_targets, trsf, self.use_path, self.is_3d)
 
     def _setup_data(self, dataset_name, shuffle, seed):
         idata = _get_idata(dataset_name, self.args)
@@ -144,6 +171,9 @@ class DataManager(object):
         self._train_data, self._train_targets = idata.train_data, idata.train_targets
         self._test_data, self._test_targets = idata.test_data, idata.test_targets
         self.use_path = idata.use_path
+
+        # Check if this is a 3D segmentation dataset
+        self.is_3d = getattr(idata, 'is_segmentation', False)
 
         # Transforms
         self._train_trsf = idata.train_trsf
@@ -160,11 +190,12 @@ class DataManager(object):
         self._class_order = order
         logging.info(self._class_order)
 
-        # Map indices
-        self._train_targets = _map_new_class_index(
-            self._train_targets, self._class_order
-        )
-        self._test_targets = _map_new_class_index(self._test_targets, self._class_order)
+        # Map indices (skip for 3D segmentation as targets are volume indices)
+        if not self.is_3d:
+            self._train_targets = _map_new_class_index(
+                self._train_targets, self._class_order
+            )
+            self._test_targets = _map_new_class_index(self._test_targets, self._class_order)
 
     def _select(self, x, y, low_range, high_range):
         idxes = np.where(np.logical_and(y >= low_range, y < high_range))[0]
@@ -189,24 +220,41 @@ class DataManager(object):
 
 
 class DummyDataset(Dataset):
-    def __init__(self, images, labels, trsf, use_path=False):
+    def __init__(self, images, labels, trsf, use_path=False, is_3d=False):
         assert len(images) == len(labels), "Data size error!"
         self.images = images
         self.labels = labels
         self.trsf = trsf
         self.use_path = use_path
+        self.is_3d = is_3d
 
     def __len__(self):
         return len(self.images)
 
     def __getitem__(self, idx):
-        if self.use_path:
-            image = self.trsf(pil_loader(self.images[idx]))
-        else:
-            image = self.trsf(Image.fromarray(self.images[idx]))
-        label = self.labels[idx]
+        if self.is_3d:
+            # For 3D medical images, images and labels are already dictionaries
+            # with 'image' and 'label' keys (MONAI format)
+            data_dict = self.images[idx]
 
-        return idx, image, label
+            # Apply MONAI transforms
+            from monai.transforms import Compose
+            if isinstance(self.trsf, list):
+                transform = Compose(self.trsf)
+            else:
+                transform = self.trsf
+
+            transformed = transform(data_dict)
+
+            return idx, transformed["image"], transformed["label"]
+        else:
+            if self.use_path:
+                image = self.trsf(pil_loader(self.images[idx]))
+            else:
+                image = self.trsf(Image.fromarray(self.images[idx]))
+            label = self.labels[idx]
+
+            return idx, image, label
 
 
 def _map_new_class_index(y, order):
@@ -237,7 +285,12 @@ def _get_idata(dataset_name, args=None):
         return omnibenchmark()
     elif name == "vtab":
         return vtab()
-
+    elif name == "brats":
+        return BTSDataset(args)
+    elif name == "abdomen":
+        return AbdominalDataset(args)
+    elif name == "medical3d":
+        return CustomMedical3D(args)
     else:
         raise NotImplementedError("Unknown dataset {}.".format(dataset_name))
 

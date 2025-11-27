@@ -62,8 +62,17 @@ def _train(args):
     args["nb_tasks"] = data_manager.nb_tasks
     model = factory.get_model(args["model_name"], args)
 
-    cnn_curve, nme_curve = {"top1": [], "top5": []}, {"top1": [], "top5": []}
-    cnn_matrix, nme_matrix = [], []
+    # Check if this is a segmentation task
+    is_segmentation = args.get("task_type", "classification") == "segmentation"
+
+    if is_segmentation:
+        # For segmentation, track Dice scores instead of accuracy
+        dice_curve = {"mean": []}
+        dice_matrix = []
+    else:
+        # For classification, track top1/top5 accuracy
+        cnn_curve, nme_curve = {"top1": [], "top5": []}, {"top1": [], "top5": []}
+        cnn_matrix, nme_matrix = [], []
 
     for task in range(data_manager.nb_tasks):
         logging.info("All params: {}".format(count_parameters(model._network)))
@@ -71,6 +80,25 @@ def _train(args):
             "Trainable params: {}".format(count_parameters(model._network, True))
         )
         model.incremental_train(data_manager)
+
+        if is_segmentation:
+            # Segmentation evaluation
+            metrics = model.eval_task()
+            model.after_task()
+
+            dice_score = metrics.get("dice", 0.0)
+            dice_curve["mean"].append(dice_score)
+
+            logging.info(f"Task {task} Dice Score: {dice_score:.4f}")
+            logging.info(f"Dice curve: {dice_curve['mean']}")
+
+            avg_dice = sum(dice_curve["mean"]) / len(dice_curve["mean"])
+            print(f'Average Dice Score: {avg_dice:.4f}')
+            logging.info(f"Average Dice Score: {avg_dice:.4f}\n")
+
+            continue  # Skip classification-specific processing
+
+        # Classification evaluation
         cnn_accy, nme_accy = model.eval_task()
         model.after_task()
 
