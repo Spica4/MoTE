@@ -49,7 +49,7 @@ def build_transform_3d(is_train: bool, args: dict, roi_size: Tuple[int, int, int
                 spatial_size=roi_size,
                 pos=1,
                 neg=1,
-                num_samples=4,
+                num_samples=1,  # Changed from 4 to 1 to return single sample
                 image_key="image",
                 image_threshold=0,
             ),

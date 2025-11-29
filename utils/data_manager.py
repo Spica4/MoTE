@@ -278,11 +278,22 @@ class DummyDataset(Dataset):
             # Apply MONAI transforms
             from monai.transforms import Compose
             if isinstance(self.trsf, list):
-                transform = Compose(self.trsf)
+                # Only compose if the list is not empty
+                if len(self.trsf) > 0:
+                    transform = Compose(self.trsf)
+                    transformed = transform(data_dict)
+                else:
+                    # No transforms, return data_dict as is
+                    transformed = data_dict
             else:
+                # trsf is already a Compose object
                 transform = self.trsf
+                transformed = transform(data_dict)
 
-            transformed = transform(data_dict)
+            # Ensure transformed is a dictionary
+            if not isinstance(transformed, dict):
+                raise TypeError(f"Expected dict from transforms, got {type(transformed)}. "
+                               f"Transforms: {[type(t).__name__ for t in (self.trsf if isinstance(self.trsf, list) else [self.trsf])]}")
 
             return idx, transformed["image"], transformed["label"]
         else:
