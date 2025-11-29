@@ -1,0 +1,50 @@
+{
+    "prefix": "AMOS22 Quick Test",
+    "dataset": "amos22",
+    "data_dir": "/datasets/amoss22",
+    "memory_size": 0,
+    "memory_per_class": 0,
+    "fixed_memory": false,
+    "shuffle": false,
+    "init_cls": 4,
+    "increment": 3,
+    "model_name": "mote_seg",
+    "backbone_type": "swin_unetr_mote_base",
+    "device": ["0"],
+    "seed": [1993],
+
+    "init_epochs": 5,
+    "init_lr": 0.0001,
+    "later_epochs": 3,
+    "later_lr": 0.00005,
+    "batch_size": 1,
+    "weight_decay": 0.00001,
+    "min_lr": 0.000001,
+    "optimizer": "adamw",
+    "scheduler": "cosine",
+    "pretrained": true,
+
+    "ffn_num": 64,
+    "d_model": 768,
+    "use_diagonal": false,
+    "alpha": 0.005,
+    "use_init_ptm": false,
+    "beta": 0,
+
+    "roi_size": [64, 64, 64],
+    "sw_batch_size": 2,
+    "overlap": 0.5,
+    "use_dice_ce": true,
+    "val_interval": 1,
+
+    "moni_adam": false,
+    "adapter_num": -1,
+    "print_forget": true,
+
+    "num_classes": 16,
+    "in_channels": 1,
+    "task_type": "segmentation",
+    "use_validation": true,
+
+    "_comment": "Quick test configuration with reduced epochs and smaller ROI"
+}
