@@ -199,7 +199,15 @@ class DataManager(object):
 
     def _select(self, x, y, low_range, high_range):
         idxes = np.where(np.logical_and(y >= low_range, y < high_range))[0]
-        return x[idxes], y[idxes]
+
+        # Handle list data (3D segmentation) vs numpy array data (2D classification)
+        if isinstance(x, list):
+            # For list data (3D medical images), select by list comprehension
+            selected_x = [x[i] for i in idxes]
+            return selected_x, y[idxes]
+        else:
+            # For numpy array data (2D images)
+            return x[idxes], y[idxes]
 
     def _select_rmm(self, x, y, low_range, high_range, m_rate):
         assert m_rate is not None
@@ -212,7 +220,15 @@ class DataManager(object):
             new_idxes = np.sort(new_idxes)
         else:
             new_idxes = np.where(np.logical_and(y >= low_range, y < high_range))[0]
-        return x[new_idxes], y[new_idxes]
+
+        # Handle list data (3D segmentation) vs numpy array data (2D classification)
+        if isinstance(x, list):
+            # For list data (3D medical images), select by list comprehension
+            selected_x = [x[i] for i in new_idxes]
+            return selected_x, y[new_idxes]
+        else:
+            # For numpy array data (2D images)
+            return x[new_idxes], y[new_idxes]
 
     def getlen(self, index):
         y = self._train_targets
