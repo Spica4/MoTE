@@ -290,6 +290,14 @@ class DummyDataset(Dataset):
                 transform = self.trsf
                 transformed = transform(data_dict)
 
+            # Handle case where transforms return a list (e.g., RandCropByPosNegLabeld with num_samples)
+            if isinstance(transformed, list):
+                # Take the first sample if it's a list
+                if len(transformed) > 0:
+                    transformed = transformed[0]
+                else:
+                    raise ValueError("Transform returned an empty list")
+
             # Ensure transformed is a dictionary
             if not isinstance(transformed, dict):
                 raise TypeError(f"Expected dict from transforms, got {type(transformed)}. "
