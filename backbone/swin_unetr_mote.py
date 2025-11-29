@@ -273,17 +273,74 @@ class SwinUNETRMoTE(nn.Module):
             x: Input tensor (B, C, H, W, D)
 
         Returns:
-            Segmentation output (B, num_classes, H, W, D)
+            Encoder features (B, feature_dim, H', W', D') for segmentation head
         """
-        # For segmentation, we need to integrate adapters into the encoder
-        # This is a simplified version - full integration would require
-        # modifying the Swin UNETR forward pass
+        # Extract features from Swin Transformer encoder
+        # Instead of running full forward pass, we extract encoder features
 
-        # Use the base model directly during training
-        # Adapters will be applied through hooks or custom forward
-        output = self.swin_unetr(x)
+        # Run through Swin encoder
+        features = self.swin_unetr.swinViT(x)  # Get encoder features
 
-        return output
+        # features is a hidden state tensor from the encoder
+        # For Swin UNETR, this returns the output from the last encoder stage
+
+        # Apply current task's adapters if available
+        if self.config and self.config.ffn_adapt and len(self.cur_adapter) > 0:
+            # Apply adapters to encoder features
+            # Note: This is a simplified version - full integration would apply
+            # adapters at each transformer block
+
+            # Get the last stage adapter
+            last_stage_idx = len(self.cur_adapter) - 1
+            if last_stage_idx >= 0:
+                stage_adapters = self.cur_adapter[last_stage_idx]
+
+                # Reshape features for adapter if needed
+                original_shape = features.shape
+                if len(features.shape) == 5:  # (B, H, W, D, C)
+                    B, H, W, D, C = features.shape
+                    features = features.reshape(B, H * W * D, C)
+                elif len(features.shape) == 3:  # Already (B, N, C)
+                    pass
+
+                # Apply adapters sequentially
+                for adapter in stage_adapters:
+                    features = adapter(features)
+
+                # Reshape back if needed
+                if len(original_shape) == 5:
+                    features = features.reshape(original_shape)
+
+        # Normalize features to expected shape
+        # Swin encoder outputs (B, H, W, D, C) or similar
+        # We need to convert to (B, C, H, W, D) for conv layers
+
+        if len(features.shape) == 5:
+            # (B, H, W, D, C) -> (B, C, H, W, D)
+            features = features.permute(0, 4, 1, 2, 3).contiguous()
+        elif len(features.shape) == 3:
+            # (B, N, C) - need to reshape to spatial dimensions
+            # Calculate spatial dimensions from input size
+            B, N, C = features.shape
+            # For Swin UNETR with img_size (96,96,96) and patch_size 4,
+            # spatial dims at bottleneck are typically (6,6,6) for 48x downsampling
+            # This is an approximation - actual dims depend on architecture
+            spatial_size = int(round(N ** (1/3)))
+            if spatial_size ** 3 == N:
+                features = features.transpose(1, 2).reshape(B, C, spatial_size, spatial_size, spatial_size)
+            else:
+                # Fallback: use average pooling to get single feature vector, then expand
+                features = features.mean(dim=1, keepdim=True)  # (B, 1, C)
+                features = features.transpose(1, 2).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)  # (B, C, 1, 1, 1)
+                # Upsample to reasonable spatial size
+                features = torch.nn.functional.interpolate(
+                    features,
+                    size=(6, 6, 6),
+                    mode='trilinear',
+                    align_corners=False
+                )
+
+        return features
 
     def forward_test(self, x: torch.Tensor, use_init_ptm: bool = False) -> torch.Tensor:
         """
@@ -294,15 +351,60 @@ class SwinUNETRMoTE(nn.Module):
             use_init_ptm: Whether to use initial pre-trained model
 
         Returns:
-            Segmentation output (B, num_classes, H, W, D)
+            Encoder features (B, feature_dim, H', W', D') for segmentation head
         """
+        # Extract features from Swin Transformer encoder
+        features = self.swin_unetr.swinViT(x)
+
         # For testing, we can use ensemble of multiple expert adapters
         # or select the best adapter based on confidence
+        # Simplified version: use current adapter
 
-        # Simplified version: use current model
-        output = self.swin_unetr(x)
+        # Apply current task's adapters if available
+        if self.config and self.config.ffn_adapt and len(self.cur_adapter) > 0:
+            # Get the last stage adapter
+            last_stage_idx = len(self.cur_adapter) - 1
+            if last_stage_idx >= 0:
+                stage_adapters = self.cur_adapter[last_stage_idx]
 
-        return output
+                # Reshape features for adapter if needed
+                original_shape = features.shape
+                if len(features.shape) == 5:  # (B, H, W, D, C)
+                    B, H, W, D, C = features.shape
+                    features = features.reshape(B, H * W * D, C)
+                elif len(features.shape) == 3:  # Already (B, N, C)
+                    pass
+
+                # Apply adapters sequentially
+                for adapter in stage_adapters:
+                    features = adapter(features)
+
+                # Reshape back if needed
+                if len(original_shape) == 5:
+                    features = features.reshape(original_shape)
+
+        # Normalize features to expected shape
+        if len(features.shape) == 5:
+            # (B, H, W, D, C) -> (B, C, H, W, D)
+            features = features.permute(0, 4, 1, 2, 3).contiguous()
+        elif len(features.shape) == 3:
+            # (B, N, C) - need to reshape to spatial dimensions
+            B, N, C = features.shape
+            spatial_size = int(round(N ** (1/3)))
+            if spatial_size ** 3 == N:
+                features = features.transpose(1, 2).reshape(B, C, spatial_size, spatial_size, spatial_size)
+            else:
+                # Fallback: use average pooling and upsample
+                features = features.mean(dim=1, keepdim=True)
+                features = features.transpose(1, 2).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+                features = torch.nn.functional.interpolate(
+                    features,
+                    size=(6, 6, 6),
+                    mode='trilinear',
+                    align_corners=False
+                )
+
+        return features
 
     def forward(self, x: torch.Tensor, test_mode: bool = False) -> torch.Tensor:
         """

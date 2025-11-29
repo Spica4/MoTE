@@ -69,6 +69,7 @@ class SegmentationHead3D(nn.Module):
     3D Segmentation head for incremental learning
 
     This head handles incremental class addition for segmentation tasks
+    with upsampling to match input resolution
     """
     def __init__(
         self,
@@ -76,6 +77,7 @@ class SegmentationHead3D(nn.Module):
         out_channels: int,
         kernel_size: int = 1,
         spatial_dims: int = 3,
+        upsample_factor: int = 16,  # Default upsampling for Swin UNETR bottleneck
     ):
         """
         Args:
@@ -83,12 +85,46 @@ class SegmentationHead3D(nn.Module):
             out_channels: Number of output classes
             kernel_size: Convolution kernel size
             spatial_dims: Spatial dimensions (3 for 3D)
+            upsample_factor: Factor to upsample features
         """
         super().__init__()
 
         self.out_channels = out_channels
-        self.conv = Conv[Conv.CONV, spatial_dims](
-            in_channels=in_channels,
+        self.upsample_factor = upsample_factor
+
+        # Decoder with progressive upsampling
+        # Reduce channels while upsampling
+        mid_channels = in_channels // 2
+
+        self.decoder = nn.Sequential(
+            # First upsample block
+            Conv[Conv.CONV, spatial_dims](in_channels, mid_channels, kernel_size=3, padding=1),
+            nn.InstanceNorm3d(mid_channels),
+            nn.LeakyReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
+
+            # Second upsample block
+            Conv[Conv.CONV, spatial_dims](mid_channels, mid_channels // 2, kernel_size=3, padding=1),
+            nn.InstanceNorm3d(mid_channels // 2),
+            nn.LeakyReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
+
+            # Third upsample block
+            Conv[Conv.CONV, spatial_dims](mid_channels // 2, mid_channels // 4, kernel_size=3, padding=1),
+            nn.InstanceNorm3d(mid_channels // 4),
+            nn.LeakyReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
+
+            # Fourth upsample block
+            Conv[Conv.CONV, spatial_dims](mid_channels // 4, mid_channels // 8, kernel_size=3, padding=1),
+            nn.InstanceNorm3d(mid_channels // 8),
+            nn.LeakyReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
+        )
+
+        # Final 1x1 conv for classification
+        self.out_conv = Conv[Conv.CONV, spatial_dims](
+            in_channels=mid_channels // 8,
             out_channels=out_channels,
             kernel_size=kernel_size,
         )
@@ -96,12 +132,14 @@ class SegmentationHead3D(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: Input features (B, C, H, W, D)
+            x: Input features (B, C, H, W, D) from encoder
 
         Returns:
-            Segmentation logits (B, num_classes, H, W, D)
+            Segmentation logits (B, num_classes, H, W, D) at full resolution
         """
-        return self.conv(x)
+        x = self.decoder(x)
+        x = self.out_conv(x)
+        return x
 
 
 class SegMoteNet(nn.Module):
