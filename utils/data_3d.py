@@ -278,3 +278,131 @@ class CustomMedical3D(MedicalImage3D):
 
         self.train_targets = np.arange(len(self.train_data))
         self.test_targets = np.arange(len(self.test_data))
+
+
+class AMOS22Dataset(MedicalImage3D):
+    """
+    AMOS22 (Abdominal Multi-Organ Segmentation 2022) dataset
+
+    Dataset structure:
+    /datasets/amoss22/
+    ├── imagesTr/  # Training images
+    ├── labelsTr/  # Training labels
+    ├── imagesVa/  # Validation images
+    ├── labelsVa/  # Validation labels
+    ├── imagesTs/  # Test images
+    └── labelsTs/  # Test labels
+
+    AMOS22 contains 15 abdominal organs:
+    - 0: Background
+    - 1: Spleen
+    - 2: Right Kidney
+    - 3: Left Kidney
+    - 4: Gallbladder
+    - 5: Esophagus
+    - 6: Liver
+    - 7: Stomach
+    - 8: Aorta
+    - 9: Inferior Vena Cava (IVC)
+    - 10: Pancreas
+    - 11: Right Adrenal Gland
+    - 12: Left Adrenal Gland
+    - 13: Duodenum
+    - 14: Bladder
+    - 15: Prostate/Uterus
+    """
+
+    def __init__(self, args: dict, roi_size: Tuple[int, int, int] = (96, 96, 96)):
+        super().__init__(args, roi_size)
+        # AMOS22 has 16 classes (background + 15 organs)
+        self.num_classes = args.get("num_classes", 16)
+        self.class_order = np.arange(self.num_classes).tolist()
+
+        # Use validation set for testing if use_validation is True
+        self.use_validation = args.get("use_validation", True)
+
+    def load_amos22_paths(self, data_dir: str, split: str = "train") -> Tuple[List[str], List[str]]:
+        """
+        Load paths to AMOS22 NIfTI files
+
+        Args:
+            data_dir: Root directory containing the AMOS22 dataset
+            split: 'train', 'val', or 'test'
+
+        Returns:
+            Tuple of (image_paths, label_paths)
+        """
+        data_path = Path(data_dir)
+
+        # AMOS22 uses different directory naming
+        if split == "train":
+            image_dir = data_path / "imagesTr"
+            label_dir = data_path / "labelsTr"
+        elif split == "val":
+            image_dir = data_path / "imagesVa"
+            label_dir = data_path / "labelsVa"
+        elif split == "test":
+            image_dir = data_path / "imagesTs"
+            label_dir = data_path / "labelsTs"
+        else:
+            raise ValueError(f"Unknown split: {split}")
+
+        if not image_dir.exists():
+            raise ValueError(f"Image directory not found: {image_dir}")
+        if not label_dir.exists():
+            raise ValueError(f"Label directory not found: {label_dir}")
+
+        image_files = sorted(list(image_dir.glob("*.nii.gz")))
+        label_files = sorted(list(label_dir.glob("*.nii.gz")))
+
+        if len(image_files) == 0:
+            raise ValueError(f"No image files found in {image_dir}")
+        if len(label_files) == 0:
+            raise ValueError(f"No label files found in {label_dir}")
+
+        # Match image and label files by filename
+        image_dict = {f.stem.replace('.nii', ''): str(f) for f in image_files}
+        label_dict = {f.stem.replace('.nii', ''): str(f) for f in label_files}
+
+        # Find common files
+        common_ids = set(image_dict.keys()) & set(label_dict.keys())
+
+        if len(common_ids) == 0:
+            raise ValueError(f"No matching image-label pairs found in {split} split")
+
+        # Create matched lists
+        image_paths = []
+        label_paths = []
+        for file_id in sorted(common_ids):
+            image_paths.append(image_dict[file_id])
+            label_paths.append(label_dict[file_id])
+
+        print(f"Loaded {len(image_paths)} {split} samples from AMOS22")
+
+        return image_paths, label_paths
+
+    def download_data(self):
+        """
+        Load AMOS22 dataset from specified directory
+        """
+        data_dir = self.args.get("data_dir", "/datasets/amoss22")
+
+        # Load training data
+        train_images, train_labels = self.load_amos22_paths(data_dir, "train")
+
+        # Load test data (use validation or test set)
+        if self.use_validation:
+            test_images, test_labels = self.load_amos22_paths(data_dir, "val")
+        else:
+            test_images, test_labels = self.load_amos22_paths(data_dir, "test")
+
+        self.train_data = self.create_data_dicts(train_images, train_labels)
+        self.test_data = self.create_data_dicts(test_images, test_labels)
+
+        self.train_targets = np.arange(len(self.train_data))
+        self.test_targets = np.arange(len(self.test_data))
+
+        print(f"AMOS22 dataset loaded:")
+        print(f"  Training samples: {len(self.train_data)}")
+        print(f"  Test samples: {len(self.test_data)}")
+        print(f"  Number of classes: {self.num_classes}")

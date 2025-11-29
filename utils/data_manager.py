@@ -4,7 +4,7 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 from utils.data import iCIFAR10, iCIFAR100, iImageNet100, iImageNet1000, iCIFAR224, iImageNetR,iImageNetA,CUB, objectnet, omnibenchmark, vtab
-from utils.data_3d import BTSDataset, AbdominalDataset, CustomMedical3D
+from utils.data_3d import BTSDataset, AbdominalDataset, CustomMedical3D, AMOS22Dataset
 
 
 class DataManager(object):
@@ -291,6 +291,8 @@ def _get_idata(dataset_name, args=None):
         return AbdominalDataset(args)
     elif name == "medical3d":
         return CustomMedical3D(args)
+    elif name == "amos22" or name == "amoss22":
+        return AMOS22Dataset(args)
     else:
         raise NotImplementedError("Unknown dataset {}.".format(dataset_name))
 
