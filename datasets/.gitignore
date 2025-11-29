@@ -1,0 +1,23 @@
+# Ignore all dataset files (NIfTI, images, etc.)
+*.nii.gz
+*.nii
+*.dcm
+*.png
+*.jpg
+*.jpeg
+
+# Ignore dataset directories but keep README files
+*/imagesTr/*
+*/labelsTr/*
+*/imagesVa/*
+*/labelsVa/*
+*/imagesTs/*
+*/labelsTs/*
+*/train/*
+*/test/*
+*/val/*
+
+# Keep README and documentation files
+!README.md
+!*.md
+!.gitignore
