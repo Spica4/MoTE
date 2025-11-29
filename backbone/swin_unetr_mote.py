@@ -172,6 +172,10 @@ class SwinUNETRMoTE(nn.Module):
         self.init = tuning_config.init if tuning_config else 2
         self.inc = tuning_config.inc if tuning_config else 2
 
+        # Store architecture parameters for adapter creation
+        self.depths = depths
+        self.feature_size = feature_size
+
         # Adapter management
         self.adapter_list = []  # Stores adapters from previous tasks
         self.cur_adapter = nn.ModuleList()  # Current task's adapters
@@ -194,7 +198,7 @@ class SwinUNETRMoTE(nn.Module):
 
         if config.ffn_adapt:
             # Create adapters for each stage of Swin Transformer
-            for i, (depth, dim) in enumerate(zip(self.swin_unetr.swinViT.depths, self.feature_dims)):
+            for i, (depth, dim) in enumerate(zip(self.depths, self.feature_dims)):
                 stage_adapters = nn.ModuleList()
                 for j in range(depth):
                     adapter = Adapter3D(
