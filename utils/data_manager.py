@@ -41,20 +41,32 @@ class DataManager(object):
         else:
             raise ValueError("Unknown data source {}.".format(source))
 
-        if mode == "train":
-            trsf = transforms.Compose([*self._train_trsf, *self._common_trsf])
-        elif mode == "flip":
-            trsf = transforms.Compose(
-                [
-                    *self._test_trsf,
-                    transforms.RandomHorizontalFlip(p=1.0),
-                    *self._common_trsf,
-                ]
-            )
-        elif mode == "test":
-            trsf = transforms.Compose([*self._test_trsf, *self._common_trsf])
+        # For 3D data, use MONAI transforms (pass as list, will be composed in DummyDataset)
+        # For 2D data, use torchvision transforms
+        if self.is_3d:
+            # For 3D medical images, keep transforms as list for MONAI
+            if mode == "train":
+                trsf = [*self._train_trsf, *self._common_trsf]
+            elif mode == "test":
+                trsf = [*self._test_trsf, *self._common_trsf]
+            else:
+                raise ValueError("Unknown mode {}.".format(mode))
         else:
-            raise ValueError("Unknown mode {}.".format(mode))
+            # For 2D images, use torchvision Compose
+            if mode == "train":
+                trsf = transforms.Compose([*self._train_trsf, *self._common_trsf])
+            elif mode == "flip":
+                trsf = transforms.Compose(
+                    [
+                        *self._test_trsf,
+                        transforms.RandomHorizontalFlip(p=1.0),
+                        *self._common_trsf,
+                    ]
+                )
+            elif mode == "test":
+                trsf = transforms.Compose([*self._test_trsf, *self._common_trsf])
+            else:
+                raise ValueError("Unknown mode {}.".format(mode))
 
         data, targets = [], []
         for idx in indices:
@@ -101,12 +113,22 @@ class DataManager(object):
         else:
             raise ValueError("Unknown data source {}.".format(source))
 
-        if mode == "train":
-            trsf = transforms.Compose([*self._train_trsf, *self._common_trsf])
-        elif mode == "test":
-            trsf = transforms.Compose([*self._test_trsf, *self._common_trsf])
+        # For 3D data, use MONAI transforms (pass as list)
+        # For 2D data, use torchvision transforms
+        if self.is_3d:
+            if mode == "train":
+                trsf = [*self._train_trsf, *self._common_trsf]
+            elif mode == "test":
+                trsf = [*self._test_trsf, *self._common_trsf]
+            else:
+                raise ValueError("Unknown mode {}.".format(mode))
         else:
-            raise ValueError("Unknown mode {}.".format(mode))
+            if mode == "train":
+                trsf = transforms.Compose([*self._train_trsf, *self._common_trsf])
+            elif mode == "test":
+                trsf = transforms.Compose([*self._test_trsf, *self._common_trsf])
+            else:
+                raise ValueError("Unknown mode {}.".format(mode))
 
         train_data, train_targets = [], []
         val_data, val_targets = [], []
