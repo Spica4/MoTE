@@ -279,10 +279,14 @@ class SwinUNETRMoTE(nn.Module):
         # Instead of running full forward pass, we extract encoder features
 
         # Run through Swin encoder
-        features = self.swin_unetr.swinViT(x)  # Get encoder features
+        hidden_states = self.swin_unetr.swinViT(x)  # Get encoder features
 
-        # features is a hidden state tensor from the encoder
-        # For Swin UNETR, this returns the output from the last encoder stage
+        # SwinViT returns a list of hidden states from different stages
+        # We need the last (deepest) feature map which is the bottleneck
+        if isinstance(hidden_states, (list, tuple)):
+            features = hidden_states[-1]  # Get the last stage features
+        else:
+            features = hidden_states
 
         # Apply current task's adapters if available
         if self.config and self.config.ffn_adapt and len(self.cur_adapter) > 0:
@@ -354,7 +358,14 @@ class SwinUNETRMoTE(nn.Module):
             Encoder features (B, feature_dim, H', W', D') for segmentation head
         """
         # Extract features from Swin Transformer encoder
-        features = self.swin_unetr.swinViT(x)
+        hidden_states = self.swin_unetr.swinViT(x)
+
+        # SwinViT returns a list of hidden states from different stages
+        # We need the last (deepest) feature map which is the bottleneck
+        if isinstance(hidden_states, (list, tuple)):
+            features = hidden_states[-1]  # Get the last stage features
+        else:
+            features = hidden_states
 
         # For testing, we can use ensemble of multiple expert adapters
         # or select the best adapter based on confidence
