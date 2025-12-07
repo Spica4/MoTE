@@ -281,30 +281,30 @@ class SwinUNETRMoTE(nn.Module):
         # Run through Swin encoder
         hidden_states = self.swin_unetr.swinViT(x)  # Get encoder features
 
+        # Debug: Print all hidden state shapes
+        if isinstance(hidden_states, (list, tuple)):
+            print(f"\nDebug - All hidden states shapes: {[hs.shape for hs in hidden_states]}")
+            print(f"Looking for feature_size: {self.feature_size}")
+
         # SwinViT returns a list of hidden states from different stages
         # We need to find the feature map with the correct feature dimension
         if isinstance(hidden_states, (list, tuple)):
             # Search for the hidden state with the expected feature dimension
             features = None
             for idx, hs in enumerate(hidden_states):
-                if len(hs.shape) == 5:
-                    # Check if any dimension matches our feature_size
-                    if hs.shape[1] == self.feature_size or hs.shape[-1] == self.feature_size:
-                        features = hs
-                        break
-                elif len(hs.shape) == 3:
-                    # (B, N, C) format - check if C matches
-                    if hs.shape[-1] == self.feature_size:
-                        features = hs
-                        break
+                # Check all dimensions for a match with feature_size
+                if self.feature_size in hs.shape:
+                    features = hs
+                    print(f"Found matching hidden state at index {idx} with shape: {hs.shape}")
+                    break
 
-            # If we didn't find matching features, use the one with largest channel dimension
+            # If we didn't find exact match, find the one with the largest dimension
+            # that's likely to be the feature dimension
             if features is None:
-                print(f"Warning: Could not find features with expected dimension {self.feature_size}")
-                print(f"Hidden states shapes: {[hs.shape for hs in hidden_states]}")
-                # Find the hidden state with the largest last dimension (likely the feature dim)
-                features = max(hidden_states, key=lambda hs: hs.shape[-1] if len(hs.shape) >= 3 else 0)
-                print(f"Using features with shape: {features.shape}")
+                print(f"Warning: Could not find exact match for feature_size {self.feature_size}")
+                # Find the hidden state with maximum dimension value (likely the feature dim)
+                features = max(hidden_states, key=lambda hs: max(hs.shape) if len(hs.shape) >= 3 else 0)
+                print(f"Using hidden state with largest dimension. Shape: {features.shape}")
         else:
             features = hidden_states
 
@@ -415,30 +415,30 @@ class SwinUNETRMoTE(nn.Module):
         # Extract features from Swin Transformer encoder
         hidden_states = self.swin_unetr.swinViT(x)
 
+        # Debug: Print all hidden state shapes
+        if isinstance(hidden_states, (list, tuple)):
+            print(f"\nDebug - All hidden states shapes: {[hs.shape for hs in hidden_states]}")
+            print(f"Looking for feature_size: {self.feature_size}")
+
         # SwinViT returns a list of hidden states from different stages
         # We need to find the feature map with the correct feature dimension
         if isinstance(hidden_states, (list, tuple)):
             # Search for the hidden state with the expected feature dimension
             features = None
             for idx, hs in enumerate(hidden_states):
-                if len(hs.shape) == 5:
-                    # Check if any dimension matches our feature_size
-                    if hs.shape[1] == self.feature_size or hs.shape[-1] == self.feature_size:
-                        features = hs
-                        break
-                elif len(hs.shape) == 3:
-                    # (B, N, C) format - check if C matches
-                    if hs.shape[-1] == self.feature_size:
-                        features = hs
-                        break
+                # Check all dimensions for a match with feature_size
+                if self.feature_size in hs.shape:
+                    features = hs
+                    print(f"Found matching hidden state at index {idx} with shape: {hs.shape}")
+                    break
 
-            # If we didn't find matching features, use the one with largest channel dimension
+            # If we didn't find exact match, find the one with the largest dimension
+            # that's likely to be the feature dimension
             if features is None:
-                print(f"Warning: Could not find features with expected dimension {self.feature_size}")
-                print(f"Hidden states shapes: {[hs.shape for hs in hidden_states]}")
-                # Find the hidden state with the largest last dimension (likely the feature dim)
-                features = max(hidden_states, key=lambda hs: hs.shape[-1] if len(hs.shape) >= 3 else 0)
-                print(f"Using features with shape: {features.shape}")
+                print(f"Warning: Could not find exact match for feature_size {self.feature_size}")
+                # Find the hidden state with maximum dimension value (likely the feature dim)
+                features = max(hidden_states, key=lambda hs: max(hs.shape) if len(hs.shape) >= 3 else 0)
+                print(f"Using hidden state with largest dimension. Shape: {features.shape}")
         else:
             features = hidden_states
 
