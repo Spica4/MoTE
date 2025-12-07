@@ -284,27 +284,14 @@ class SwinUNETRMoTE(nn.Module):
         # Debug: Print all hidden state shapes
         if isinstance(hidden_states, (list, tuple)):
             print(f"\nDebug - All hidden states shapes: {[hs.shape for hs in hidden_states]}")
-            print(f"Looking for feature_size: {self.feature_size}")
 
-        # SwinViT returns a list of hidden states from different stages
-        # We need to find the feature map with the correct feature dimension
+        # SwinViT returns a list of hidden states from different stages in (B, C, H, W, D) format
+        # We need the one with the largest channel dimension (C at index 1)
         if isinstance(hidden_states, (list, tuple)):
-            # Search for the hidden state with the expected feature dimension
-            features = None
-            for idx, hs in enumerate(hidden_states):
-                # Check all dimensions for a match with feature_size
-                if self.feature_size in hs.shape:
-                    features = hs
-                    print(f"Found matching hidden state at index {idx} with shape: {hs.shape}")
-                    break
-
-            # If we didn't find exact match, find the one with the largest dimension
-            # that's likely to be the feature dimension
-            if features is None:
-                print(f"Warning: Could not find exact match for feature_size {self.feature_size}")
-                # Find the hidden state with maximum dimension value (likely the feature dim)
-                features = max(hidden_states, key=lambda hs: max(hs.shape) if len(hs.shape) >= 3 else 0)
-                print(f"Using hidden state with largest dimension. Shape: {features.shape}")
+            # Select the hidden state with the largest channel dimension
+            # Assuming format is (B, C, H, W, D) where C is at index 1
+            features = max(hidden_states, key=lambda hs: hs.shape[1] if len(hs.shape) == 5 else 0)
+            print(f"Selected hidden state with shape: {features.shape} (channel dim: {features.shape[1]})")
         else:
             features = hidden_states
 
@@ -321,35 +308,20 @@ class SwinUNETRMoTE(nn.Module):
 
                 # Reshape features for adapter if needed
                 # Adapter expects (B, N, C) where C is the feature dimension
+                # Features from swinViT are in (B, C, H, W, D) format
                 original_shape = features.shape
 
                 if len(features.shape) == 5:
-                    # Could be either (B, C, H, W, D) or (B, H, W, D, C)
-                    # Check which dimension matches the expected feature_dim
-                    if features.shape[1] == self.feature_size:
-                        # (B, C, H, W, D) format - channels first
-                        B, C, H, W, D = features.shape
-                        features = features.permute(0, 2, 3, 4, 1).contiguous()  # -> (B, H, W, D, C)
-                        features = features.reshape(B, H * W * D, C)
-                    elif features.shape[-1] == self.feature_size:
-                        # (B, H, W, D, C) format - channels last
-                        B, H, W, D, C = features.shape
-                        features = features.reshape(B, H * W * D, C)
-                    else:
-                        # Try to infer based on size
-                        # Larger dimensions are likely spatial
-                        if features.shape[1] < features.shape[2]:
-                            # Likely (B, C, H, W, D)
-                            B, C, H, W, D = features.shape
-                            features = features.permute(0, 2, 3, 4, 1).contiguous()
-                            features = features.reshape(B, H * W * D, C)
-                        else:
-                            # Likely (B, H, W, D, C)
-                            B, H, W, D, C = features.shape
-                            features = features.reshape(B, H * W * D, C)
+                    # (B, C, H, W, D) format from Swin encoder
+                    B, C, H, W, D = features.shape
+                    print(f"Reshaping features from {features.shape} to (B, N, C) format for adapter")
+                    # Permute to (B, H, W, D, C) then reshape to (B, H*W*D, C)
+                    features = features.permute(0, 2, 3, 4, 1).contiguous()  # -> (B, H, W, D, C)
+                    features = features.reshape(B, H * W * D, C)
+                    print(f"Reshaped to: {features.shape}")
                 elif len(features.shape) == 3:
                     # Already (B, N, C) format
-                    pass
+                    print(f"Features already in (B, N, C) format: {features.shape}")
                 else:
                     raise ValueError(f"Unexpected feature shape: {features.shape}")
 
@@ -357,18 +329,12 @@ class SwinUNETRMoTE(nn.Module):
                 for adapter in stage_adapters:
                     features = adapter(features)
 
-                # Reshape back to original format
+                # Reshape back to (B, C, H, W, D) format
                 if len(original_shape) == 5:
-                    if original_shape[1] == self.feature_size:
-                        # Was (B, C, H, W, D), restore that format
-                        B, N, C = features.shape
-                        H, W, D = original_shape[2], original_shape[3], original_shape[4]
-                        features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
-                    else:
-                        # Was (B, H, W, D, C), restore that format
-                        B, N, C = features.shape
-                        H, W, D = original_shape[1], original_shape[2], original_shape[3]
-                        features = features.reshape(B, H, W, D, C)
+                    B, N, C = features.shape
+                    H, W, D = original_shape[2], original_shape[3], original_shape[4]
+                    features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
+                    print(f"Restored to original shape: {features.shape}")
 
         # Normalize features to expected shape
         # Swin encoder outputs (B, H, W, D, C) or similar
@@ -418,27 +384,14 @@ class SwinUNETRMoTE(nn.Module):
         # Debug: Print all hidden state shapes
         if isinstance(hidden_states, (list, tuple)):
             print(f"\nDebug - All hidden states shapes: {[hs.shape for hs in hidden_states]}")
-            print(f"Looking for feature_size: {self.feature_size}")
 
-        # SwinViT returns a list of hidden states from different stages
-        # We need to find the feature map with the correct feature dimension
+        # SwinViT returns a list of hidden states from different stages in (B, C, H, W, D) format
+        # We need the one with the largest channel dimension (C at index 1)
         if isinstance(hidden_states, (list, tuple)):
-            # Search for the hidden state with the expected feature dimension
-            features = None
-            for idx, hs in enumerate(hidden_states):
-                # Check all dimensions for a match with feature_size
-                if self.feature_size in hs.shape:
-                    features = hs
-                    print(f"Found matching hidden state at index {idx} with shape: {hs.shape}")
-                    break
-
-            # If we didn't find exact match, find the one with the largest dimension
-            # that's likely to be the feature dimension
-            if features is None:
-                print(f"Warning: Could not find exact match for feature_size {self.feature_size}")
-                # Find the hidden state with maximum dimension value (likely the feature dim)
-                features = max(hidden_states, key=lambda hs: max(hs.shape) if len(hs.shape) >= 3 else 0)
-                print(f"Using hidden state with largest dimension. Shape: {features.shape}")
+            # Select the hidden state with the largest channel dimension
+            # Assuming format is (B, C, H, W, D) where C is at index 1
+            features = max(hidden_states, key=lambda hs: hs.shape[1] if len(hs.shape) == 5 else 0)
+            print(f"Selected hidden state with shape: {features.shape} (channel dim: {features.shape[1]})")
         else:
             features = hidden_states
 
@@ -455,35 +408,20 @@ class SwinUNETRMoTE(nn.Module):
 
                 # Reshape features for adapter if needed
                 # Adapter expects (B, N, C) where C is the feature dimension
+                # Features from swinViT are in (B, C, H, W, D) format
                 original_shape = features.shape
 
                 if len(features.shape) == 5:
-                    # Could be either (B, C, H, W, D) or (B, H, W, D, C)
-                    # Check which dimension matches the expected feature_dim
-                    if features.shape[1] == self.feature_size:
-                        # (B, C, H, W, D) format - channels first
-                        B, C, H, W, D = features.shape
-                        features = features.permute(0, 2, 3, 4, 1).contiguous()  # -> (B, H, W, D, C)
-                        features = features.reshape(B, H * W * D, C)
-                    elif features.shape[-1] == self.feature_size:
-                        # (B, H, W, D, C) format - channels last
-                        B, H, W, D, C = features.shape
-                        features = features.reshape(B, H * W * D, C)
-                    else:
-                        # Try to infer based on size
-                        # Larger dimensions are likely spatial
-                        if features.shape[1] < features.shape[2]:
-                            # Likely (B, C, H, W, D)
-                            B, C, H, W, D = features.shape
-                            features = features.permute(0, 2, 3, 4, 1).contiguous()
-                            features = features.reshape(B, H * W * D, C)
-                        else:
-                            # Likely (B, H, W, D, C)
-                            B, H, W, D, C = features.shape
-                            features = features.reshape(B, H * W * D, C)
+                    # (B, C, H, W, D) format from Swin encoder
+                    B, C, H, W, D = features.shape
+                    print(f"Reshaping features from {features.shape} to (B, N, C) format for adapter")
+                    # Permute to (B, H, W, D, C) then reshape to (B, H*W*D, C)
+                    features = features.permute(0, 2, 3, 4, 1).contiguous()  # -> (B, H, W, D, C)
+                    features = features.reshape(B, H * W * D, C)
+                    print(f"Reshaped to: {features.shape}")
                 elif len(features.shape) == 3:
                     # Already (B, N, C) format
-                    pass
+                    print(f"Features already in (B, N, C) format: {features.shape}")
                 else:
                     raise ValueError(f"Unexpected feature shape: {features.shape}")
 
@@ -491,18 +429,12 @@ class SwinUNETRMoTE(nn.Module):
                 for adapter in stage_adapters:
                     features = adapter(features)
 
-                # Reshape back to original format
+                # Reshape back to (B, C, H, W, D) format
                 if len(original_shape) == 5:
-                    if original_shape[1] == self.feature_size:
-                        # Was (B, C, H, W, D), restore that format
-                        B, N, C = features.shape
-                        H, W, D = original_shape[2], original_shape[3], original_shape[4]
-                        features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
-                    else:
-                        # Was (B, H, W, D, C), restore that format
-                        B, N, C = features.shape
-                        H, W, D = original_shape[1], original_shape[2], original_shape[3]
-                        features = features.reshape(B, H, W, D, C)
+                    B, N, C = features.shape
+                    H, W, D = original_shape[2], original_shape[3], original_shape[4]
+                    features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
+                    print(f"Restored to original shape: {features.shape}")
 
         # Normalize features to expected shape
         if len(features.shape) == 5:
