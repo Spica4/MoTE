@@ -293,12 +293,19 @@ class SegmentationLearner(BaseLearner):
                     labels = labels.to(self._device)
 
                 # Map labels to relative indices for current task
-                # Only train on new classes (old classes are background)
+                # Current task classes: [_known_classes, _total_classes)
+                # Map current task classes to relative indices [0, task_size)
+                # Map all other classes (old and future) to background (0)
                 labels_relative = labels.clone()
+
+                # Create mask for current task classes only
+                current_task_mask = (labels >= self._known_classes) & (labels < self._total_classes)
+
+                # Map to relative indices: only current task classes get non-zero labels
                 labels_relative = torch.where(
-                    labels_relative >= self._known_classes,
-                    labels_relative - self._known_classes,
-                    0,  # Map old classes to background
+                    current_task_mask,
+                    labels - self._known_classes,  # Current task: relative indices
+                    torch.zeros_like(labels)  # Old + future classes: background (0)
                 )
 
                 # Forward pass
