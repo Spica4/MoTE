@@ -282,9 +282,29 @@ class SwinUNETRMoTE(nn.Module):
         hidden_states = self.swin_unetr.swinViT(x)  # Get encoder features
 
         # SwinViT returns a list of hidden states from different stages
-        # We need the last (deepest) feature map which is the bottleneck
+        # We need to find the feature map with the correct feature dimension
         if isinstance(hidden_states, (list, tuple)):
-            features = hidden_states[-1]  # Get the last stage features
+            # Search for the hidden state with the expected feature dimension
+            features = None
+            for idx, hs in enumerate(hidden_states):
+                if len(hs.shape) == 5:
+                    # Check if any dimension matches our feature_size
+                    if hs.shape[1] == self.feature_size or hs.shape[-1] == self.feature_size:
+                        features = hs
+                        break
+                elif len(hs.shape) == 3:
+                    # (B, N, C) format - check if C matches
+                    if hs.shape[-1] == self.feature_size:
+                        features = hs
+                        break
+
+            # If we didn't find matching features, use the one with largest channel dimension
+            if features is None:
+                print(f"Warning: Could not find features with expected dimension {self.feature_size}")
+                print(f"Hidden states shapes: {[hs.shape for hs in hidden_states]}")
+                # Find the hidden state with the largest last dimension (likely the feature dim)
+                features = max(hidden_states, key=lambda hs: hs.shape[-1] if len(hs.shape) >= 3 else 0)
+                print(f"Using features with shape: {features.shape}")
         else:
             features = hidden_states
 
@@ -396,9 +416,29 @@ class SwinUNETRMoTE(nn.Module):
         hidden_states = self.swin_unetr.swinViT(x)
 
         # SwinViT returns a list of hidden states from different stages
-        # We need the last (deepest) feature map which is the bottleneck
+        # We need to find the feature map with the correct feature dimension
         if isinstance(hidden_states, (list, tuple)):
-            features = hidden_states[-1]  # Get the last stage features
+            # Search for the hidden state with the expected feature dimension
+            features = None
+            for idx, hs in enumerate(hidden_states):
+                if len(hs.shape) == 5:
+                    # Check if any dimension matches our feature_size
+                    if hs.shape[1] == self.feature_size or hs.shape[-1] == self.feature_size:
+                        features = hs
+                        break
+                elif len(hs.shape) == 3:
+                    # (B, N, C) format - check if C matches
+                    if hs.shape[-1] == self.feature_size:
+                        features = hs
+                        break
+
+            # If we didn't find matching features, use the one with largest channel dimension
+            if features is None:
+                print(f"Warning: Could not find features with expected dimension {self.feature_size}")
+                print(f"Hidden states shapes: {[hs.shape for hs in hidden_states]}")
+                # Find the hidden state with the largest last dimension (likely the feature dim)
+                features = max(hidden_states, key=lambda hs: hs.shape[-1] if len(hs.shape) >= 3 else 0)
+                print(f"Using features with shape: {features.shape}")
         else:
             features = hidden_states
 
