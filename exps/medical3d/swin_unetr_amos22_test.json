@@ -1,7 +1,7 @@
 {
     "prefix": "AMOS22 Quick Test",
     "dataset": "amos22",
-    "data_dir": "./datasets/amoss22",
+    "data_dir": "/deeparea/sokabe/Dataset/amos22/only_CT",
     "memory_size": 0,
     "memory_per_class": 0,
     "fixed_memory": false,
