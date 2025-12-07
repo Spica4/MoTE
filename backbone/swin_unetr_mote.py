@@ -300,20 +300,55 @@ class SwinUNETRMoTE(nn.Module):
                 stage_adapters = self.cur_adapter[last_stage_idx]
 
                 # Reshape features for adapter if needed
+                # Adapter expects (B, N, C) where C is the feature dimension
                 original_shape = features.shape
-                if len(features.shape) == 5:  # (B, H, W, D, C)
-                    B, H, W, D, C = features.shape
-                    features = features.reshape(B, H * W * D, C)
-                elif len(features.shape) == 3:  # Already (B, N, C)
+
+                if len(features.shape) == 5:
+                    # Could be either (B, C, H, W, D) or (B, H, W, D, C)
+                    # Check which dimension matches the expected feature_dim
+                    if features.shape[1] == self.feature_size:
+                        # (B, C, H, W, D) format - channels first
+                        B, C, H, W, D = features.shape
+                        features = features.permute(0, 2, 3, 4, 1).contiguous()  # -> (B, H, W, D, C)
+                        features = features.reshape(B, H * W * D, C)
+                    elif features.shape[-1] == self.feature_size:
+                        # (B, H, W, D, C) format - channels last
+                        B, H, W, D, C = features.shape
+                        features = features.reshape(B, H * W * D, C)
+                    else:
+                        # Try to infer based on size
+                        # Larger dimensions are likely spatial
+                        if features.shape[1] < features.shape[2]:
+                            # Likely (B, C, H, W, D)
+                            B, C, H, W, D = features.shape
+                            features = features.permute(0, 2, 3, 4, 1).contiguous()
+                            features = features.reshape(B, H * W * D, C)
+                        else:
+                            # Likely (B, H, W, D, C)
+                            B, H, W, D, C = features.shape
+                            features = features.reshape(B, H * W * D, C)
+                elif len(features.shape) == 3:
+                    # Already (B, N, C) format
                     pass
+                else:
+                    raise ValueError(f"Unexpected feature shape: {features.shape}")
 
                 # Apply adapters sequentially
                 for adapter in stage_adapters:
                     features = adapter(features)
 
-                # Reshape back if needed
+                # Reshape back to original format
                 if len(original_shape) == 5:
-                    features = features.reshape(original_shape)
+                    if original_shape[1] == self.feature_size:
+                        # Was (B, C, H, W, D), restore that format
+                        B, N, C = features.shape
+                        H, W, D = original_shape[2], original_shape[3], original_shape[4]
+                        features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
+                    else:
+                        # Was (B, H, W, D, C), restore that format
+                        B, N, C = features.shape
+                        H, W, D = original_shape[1], original_shape[2], original_shape[3]
+                        features = features.reshape(B, H, W, D, C)
 
         # Normalize features to expected shape
         # Swin encoder outputs (B, H, W, D, C) or similar
@@ -379,20 +414,55 @@ class SwinUNETRMoTE(nn.Module):
                 stage_adapters = self.cur_adapter[last_stage_idx]
 
                 # Reshape features for adapter if needed
+                # Adapter expects (B, N, C) where C is the feature dimension
                 original_shape = features.shape
-                if len(features.shape) == 5:  # (B, H, W, D, C)
-                    B, H, W, D, C = features.shape
-                    features = features.reshape(B, H * W * D, C)
-                elif len(features.shape) == 3:  # Already (B, N, C)
+
+                if len(features.shape) == 5:
+                    # Could be either (B, C, H, W, D) or (B, H, W, D, C)
+                    # Check which dimension matches the expected feature_dim
+                    if features.shape[1] == self.feature_size:
+                        # (B, C, H, W, D) format - channels first
+                        B, C, H, W, D = features.shape
+                        features = features.permute(0, 2, 3, 4, 1).contiguous()  # -> (B, H, W, D, C)
+                        features = features.reshape(B, H * W * D, C)
+                    elif features.shape[-1] == self.feature_size:
+                        # (B, H, W, D, C) format - channels last
+                        B, H, W, D, C = features.shape
+                        features = features.reshape(B, H * W * D, C)
+                    else:
+                        # Try to infer based on size
+                        # Larger dimensions are likely spatial
+                        if features.shape[1] < features.shape[2]:
+                            # Likely (B, C, H, W, D)
+                            B, C, H, W, D = features.shape
+                            features = features.permute(0, 2, 3, 4, 1).contiguous()
+                            features = features.reshape(B, H * W * D, C)
+                        else:
+                            # Likely (B, H, W, D, C)
+                            B, H, W, D, C = features.shape
+                            features = features.reshape(B, H * W * D, C)
+                elif len(features.shape) == 3:
+                    # Already (B, N, C) format
                     pass
+                else:
+                    raise ValueError(f"Unexpected feature shape: {features.shape}")
 
                 # Apply adapters sequentially
                 for adapter in stage_adapters:
                     features = adapter(features)
 
-                # Reshape back if needed
+                # Reshape back to original format
                 if len(original_shape) == 5:
-                    features = features.reshape(original_shape)
+                    if original_shape[1] == self.feature_size:
+                        # Was (B, C, H, W, D), restore that format
+                        B, N, C = features.shape
+                        H, W, D = original_shape[2], original_shape[3], original_shape[4]
+                        features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
+                    else:
+                        # Was (B, H, W, D, C), restore that format
+                        B, N, C = features.shape
+                        H, W, D = original_shape[1], original_shape[2], original_shape[3]
+                        features = features.reshape(B, H, W, D, C)
 
         # Normalize features to expected shape
         if len(features.shape) == 5:
