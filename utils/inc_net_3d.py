@@ -93,38 +93,45 @@ class SegmentationHead3D(nn.Module):
         self.upsample_factor = upsample_factor
 
         # Decoder with progressive upsampling
-        # Reduce channels while upsampling
+        # Need 32x upsampling: 3x3x3 -> 96x96x96 (for ROI size 96)
+        # 5 blocks of 2x upsampling = 2^5 = 32x
         mid_channels = in_channels // 2
 
         self.decoder = nn.Sequential(
-            # First upsample block
+            # First upsample block: 3x3x3 -> 6x6x6
             Conv[Conv.CONV, spatial_dims](in_channels, mid_channels, kernel_size=3, padding=1),
             nn.InstanceNorm3d(mid_channels),
             nn.LeakyReLU(inplace=True),
             nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
 
-            # Second upsample block
+            # Second upsample block: 6x6x6 -> 12x12x12
             Conv[Conv.CONV, spatial_dims](mid_channels, mid_channels // 2, kernel_size=3, padding=1),
             nn.InstanceNorm3d(mid_channels // 2),
             nn.LeakyReLU(inplace=True),
             nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
 
-            # Third upsample block
+            # Third upsample block: 12x12x12 -> 24x24x24
             Conv[Conv.CONV, spatial_dims](mid_channels // 2, mid_channels // 4, kernel_size=3, padding=1),
             nn.InstanceNorm3d(mid_channels // 4),
             nn.LeakyReLU(inplace=True),
             nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
 
-            # Fourth upsample block
+            # Fourth upsample block: 24x24x24 -> 48x48x48
             Conv[Conv.CONV, spatial_dims](mid_channels // 4, mid_channels // 8, kernel_size=3, padding=1),
             nn.InstanceNorm3d(mid_channels // 8),
+            nn.LeakyReLU(inplace=True),
+            nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
+
+            # Fifth upsample block: 48x48x48 -> 96x96x96
+            Conv[Conv.CONV, spatial_dims](mid_channels // 8, mid_channels // 16, kernel_size=3, padding=1),
+            nn.InstanceNorm3d(mid_channels // 16),
             nn.LeakyReLU(inplace=True),
             nn.Upsample(scale_factor=2, mode='trilinear', align_corners=False),
         )
 
         # Final 1x1 conv for classification
         self.out_conv = Conv[Conv.CONV, spatial_dims](
-            in_channels=mid_channels // 8,
+            in_channels=mid_channels // 16,
             out_channels=out_channels,
             kernel_size=kernel_size,
         )
