@@ -338,35 +338,33 @@ class SwinUNETRMoTE(nn.Module):
                     H, W, D = original_shape[2], original_shape[3], original_shape[4]
                     features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
                     print(f"Restored to original shape: {features.shape}")
-
-        # Normalize features to expected shape
-        # Swin encoder outputs (B, H, W, D, C) or similar
-        # We need to convert to (B, C, H, W, D) for conv layers
-
-        if len(features.shape) == 5:
-            # (B, H, W, D, C) -> (B, C, H, W, D)
-            features = features.permute(0, 4, 1, 2, 3).contiguous()
-        elif len(features.shape) == 3:
-            # (B, N, C) - need to reshape to spatial dimensions
-            # Calculate spatial dimensions from input size
-            B, N, C = features.shape
-            # For Swin UNETR with img_size (96,96,96) and patch_size 4,
-            # spatial dims at bottleneck are typically (6,6,6) for 48x downsampling
-            # This is an approximation - actual dims depend on architecture
-            spatial_size = int(round(N ** (1/3)))
-            if spatial_size ** 3 == N:
-                features = features.transpose(1, 2).reshape(B, C, spatial_size, spatial_size, spatial_size)
-            else:
-                # Fallback: use average pooling to get single feature vector, then expand
-                features = features.mean(dim=1, keepdim=True)  # (B, 1, C)
-                features = features.transpose(1, 2).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)  # (B, C, 1, 1, 1)
-                # Upsample to reasonable spatial size
-                features = torch.nn.functional.interpolate(
-                    features,
-                    size=(6, 6, 6),
-                    mode='trilinear',
-                    align_corners=False
-                )
+        else:
+            # No adapters used - need to convert features to (B, C, H, W, D) format
+            if len(features.shape) == 5:
+                # Check if already in correct format or needs permute
+                # If spatial dims are larger than channel dim, likely (B, C, H, W, D) already
+                if features.shape[1] < features.shape[2]:
+                    # Already (B, C, H, W, D)
+                    pass
+                else:
+                    # (B, H, W, D, C) -> (B, C, H, W, D)
+                    features = features.permute(0, 4, 1, 2, 3).contiguous()
+            elif len(features.shape) == 3:
+                # (B, N, C) - need to reshape to spatial dimensions
+                B, N, C = features.shape
+                spatial_size = int(round(N ** (1/3)))
+                if spatial_size ** 3 == N:
+                    features = features.transpose(1, 2).reshape(B, C, spatial_size, spatial_size, spatial_size)
+                else:
+                    # Fallback: use average pooling and upsample
+                    features = features.mean(dim=1, keepdim=True)
+                    features = features.transpose(1, 2).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+                    features = torch.nn.functional.interpolate(
+                        features,
+                        size=(6, 6, 6),
+                        mode='trilinear',
+                        align_corners=False
+                    )
 
         return features
 
@@ -438,27 +436,32 @@ class SwinUNETRMoTE(nn.Module):
                     H, W, D = original_shape[2], original_shape[3], original_shape[4]
                     features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
                     print(f"Restored to original shape: {features.shape}")
-
-        # Normalize features to expected shape
-        if len(features.shape) == 5:
-            # (B, H, W, D, C) -> (B, C, H, W, D)
-            features = features.permute(0, 4, 1, 2, 3).contiguous()
-        elif len(features.shape) == 3:
-            # (B, N, C) - need to reshape to spatial dimensions
-            B, N, C = features.shape
-            spatial_size = int(round(N ** (1/3)))
-            if spatial_size ** 3 == N:
-                features = features.transpose(1, 2).reshape(B, C, spatial_size, spatial_size, spatial_size)
-            else:
-                # Fallback: use average pooling and upsample
-                features = features.mean(dim=1, keepdim=True)
-                features = features.transpose(1, 2).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
-                features = torch.nn.functional.interpolate(
-                    features,
-                    size=(6, 6, 6),
-                    mode='trilinear',
-                    align_corners=False
-                )
+        else:
+            # No adapters used - need to convert features to (B, C, H, W, D) format
+            if len(features.shape) == 5:
+                # Check if already in correct format or needs permute
+                if features.shape[1] < features.shape[2]:
+                    # Already (B, C, H, W, D)
+                    pass
+                else:
+                    # (B, H, W, D, C) -> (B, C, H, W, D)
+                    features = features.permute(0, 4, 1, 2, 3).contiguous()
+            elif len(features.shape) == 3:
+                # (B, N, C) - need to reshape to spatial dimensions
+                B, N, C = features.shape
+                spatial_size = int(round(N ** (1/3)))
+                if spatial_size ** 3 == N:
+                    features = features.transpose(1, 2).reshape(B, C, spatial_size, spatial_size, spatial_size)
+                else:
+                    # Fallback: use average pooling and upsample
+                    features = features.mean(dim=1, keepdim=True)
+                    features = features.transpose(1, 2).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+                    features = torch.nn.functional.interpolate(
+                        features,
+                        size=(6, 6, 6),
+                        mode='trilinear',
+                        align_corners=False
+                    )
 
         return features
 
