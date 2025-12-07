@@ -184,8 +184,11 @@ class SwinUNETRMoTE(nn.Module):
         self.num_layers = sum(depths)
 
         # Get feature dimension from Swin encoder
-        # Feature size progression: 24, 48, 96, 192 (with feature_size=24)
-        self.feature_dims = [feature_size * (2 ** i) for i in range(len(depths))]
+        # For Swin UNETR, the actual feature dimensions are doubled at each stage
+        # With feature_size=24: [48, 96, 192, 384, 768]
+        # Formula: feature_size * 2^(i+1) for i in range(len(depths)+1)
+        self.feature_dims = [feature_size * (2 ** (i+1)) for i in range(len(depths) + 1)]
+        print(f"Swin UNETR feature dimensions per stage: {self.feature_dims}")
 
         # Initialize adapters for the first task
         if tuning_config and tuning_config.ffn_adapt:
