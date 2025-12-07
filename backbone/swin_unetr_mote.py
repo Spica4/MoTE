@@ -285,8 +285,8 @@ class SwinUNETRMoTE(nn.Module):
         hidden_states = self.swin_unetr.swinViT(x)  # Get encoder features
 
         # Debug: Print all hidden state shapes
-        if isinstance(hidden_states, (list, tuple)):
-            print(f"\nDebug - All hidden states shapes: {[hs.shape for hs in hidden_states]}")
+        # if isinstance(hidden_states, (list, tuple)):
+        #     print(f"\nDebug - All hidden states shapes: {[hs.shape for hs in hidden_states]}")
 
         # SwinViT returns a list of hidden states from different stages in (B, C, H, W, D) format
         # We need the one with the largest channel dimension (C at index 1)
@@ -294,7 +294,7 @@ class SwinUNETRMoTE(nn.Module):
             # Select the hidden state with the largest channel dimension
             # Assuming format is (B, C, H, W, D) where C is at index 1
             features = max(hidden_states, key=lambda hs: hs.shape[1] if len(hs.shape) == 5 else 0)
-            print(f"Selected hidden state with shape: {features.shape} (channel dim: {features.shape[1]})")
+            # print(f"Selected hidden state with shape: {features.shape} (channel dim: {features.shape[1]})")
         else:
             features = hidden_states
 
@@ -317,14 +317,14 @@ class SwinUNETRMoTE(nn.Module):
                 if len(features.shape) == 5:
                     # (B, C, H, W, D) format from Swin encoder
                     B, C, H, W, D = features.shape
-                    print(f"Reshaping features from {features.shape} to (B, N, C) format for adapter")
+                    # print(f"Reshaping features from {features.shape} to (B, N, C) format for adapter")
                     # Permute to (B, H, W, D, C) then reshape to (B, H*W*D, C)
                     features = features.permute(0, 2, 3, 4, 1).contiguous()  # -> (B, H, W, D, C)
                     features = features.reshape(B, H * W * D, C)
-                    print(f"Reshaped to: {features.shape}")
+                    # print(f"Reshaped to: {features.shape}")
                 elif len(features.shape) == 3:
                     # Already (B, N, C) format
-                    print(f"Features already in (B, N, C) format: {features.shape}")
+                    # print(f"Features already in (B, N, C) format: {features.shape}")
                 else:
                     raise ValueError(f"Unexpected feature shape: {features.shape}")
 
@@ -337,7 +337,7 @@ class SwinUNETRMoTE(nn.Module):
                     B, N, C = features.shape
                     H, W, D = original_shape[2], original_shape[3], original_shape[4]
                     features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
-                    print(f"Restored to original shape: {features.shape}")
+                    # print(f"Restored to original shape: {features.shape}")
         else:
             # No adapters used - need to convert features to (B, C, H, W, D) format
             if len(features.shape) == 5:
@@ -383,8 +383,8 @@ class SwinUNETRMoTE(nn.Module):
         hidden_states = self.swin_unetr.swinViT(x)
 
         # Debug: Print all hidden state shapes
-        if isinstance(hidden_states, (list, tuple)):
-            print(f"\nDebug - All hidden states shapes: {[hs.shape for hs in hidden_states]}")
+        # if isinstance(hidden_states, (list, tuple)):
+        #     print(f"\nDebug - All hidden states shapes: {[hs.shape for hs in hidden_states]}")
 
         # SwinViT returns a list of hidden states from different stages in (B, C, H, W, D) format
         # We need the one with the largest channel dimension (C at index 1)
@@ -392,7 +392,7 @@ class SwinUNETRMoTE(nn.Module):
             # Select the hidden state with the largest channel dimension
             # Assuming format is (B, C, H, W, D) where C is at index 1
             features = max(hidden_states, key=lambda hs: hs.shape[1] if len(hs.shape) == 5 else 0)
-            print(f"Selected hidden state with shape: {features.shape} (channel dim: {features.shape[1]})")
+            # print(f"Selected hidden state with shape: {features.shape} (channel dim: {features.shape[1]})")
         else:
             features = hidden_states
 
@@ -415,14 +415,14 @@ class SwinUNETRMoTE(nn.Module):
                 if len(features.shape) == 5:
                     # (B, C, H, W, D) format from Swin encoder
                     B, C, H, W, D = features.shape
-                    print(f"Reshaping features from {features.shape} to (B, N, C) format for adapter")
+                    # print(f"Reshaping features from {features.shape} to (B, N, C) format for adapter")
                     # Permute to (B, H, W, D, C) then reshape to (B, H*W*D, C)
                     features = features.permute(0, 2, 3, 4, 1).contiguous()  # -> (B, H, W, D, C)
                     features = features.reshape(B, H * W * D, C)
-                    print(f"Reshaped to: {features.shape}")
+                    # print(f"Reshaped to: {features.shape}")
                 elif len(features.shape) == 3:
                     # Already (B, N, C) format
-                    print(f"Features already in (B, N, C) format: {features.shape}")
+                    # print(f"Features already in (B, N, C) format: {features.shape}")
                 else:
                     raise ValueError(f"Unexpected feature shape: {features.shape}")
 
@@ -435,7 +435,7 @@ class SwinUNETRMoTE(nn.Module):
                     B, N, C = features.shape
                     H, W, D = original_shape[2], original_shape[3], original_shape[4]
                     features = features.reshape(B, H, W, D, C).permute(0, 4, 1, 2, 3).contiguous()
-                    print(f"Restored to original shape: {features.shape}")
+                    # print(f"Restored to original shape: {features.shape}")
         else:
             # No adapters used - need to convert features to (B, C, H, W, D) format
             if len(features.shape) == 5:
