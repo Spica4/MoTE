@@ -325,6 +325,7 @@ class SwinUNETRMoTE(nn.Module):
                 elif len(features.shape) == 3:
                     # Already (B, N, C) format
                     # print(f"Features already in (B, N, C) format: {features.shape}")
+                    pass
                 else:
                     raise ValueError(f"Unexpected feature shape: {features.shape}")
 
@@ -423,6 +424,7 @@ class SwinUNETRMoTE(nn.Module):
                 elif len(features.shape) == 3:
                     # Already (B, N, C) format
                     # print(f"Features already in (B, N, C) format: {features.shape}")
+                    pass
                 else:
                     raise ValueError(f"Unexpected feature shape: {features.shape}")
 
