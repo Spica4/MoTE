@@ -12,7 +12,7 @@
     "device": ["0"],
     "seed": [42],
 
-    "init_epochs": 10,
+    "init_epochs": 5,
     "init_lr": 1e-3,
     "later_epochs": 10,
     "later_lr": 1e-3,
