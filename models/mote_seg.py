@@ -215,11 +215,31 @@ class SegLearner(BaseSegLearner):
                 # targets: [B, 1, H, W, D] with class indices
                 inputs, targets = inputs.to(self._device), targets.to(self._device)
 
+                # Debug info for first batch of first epoch
+                if epoch == 0 and i == 0:
+                    logging.info(f"Debug - Input shape: {inputs.shape}")
+                    logging.info(f"Debug - Target shape: {targets.shape}")
+                    logging.info(f"Debug - Target unique values: {torch.unique(targets)}")
+                    logging.info(f"Debug - Target min/max: {targets.min()}/{targets.max()}")
+
                 # Forward pass
                 logits = self._network(inputs, test=False)
 
+                # Debug info for first batch of first epoch
+                if epoch == 0 and i == 0:
+                    logging.info(f"Debug - Logits shape: {logits.shape}")
+                    logging.info(f"Debug - Logits min/max: {logits.min():.4f}/{logits.max():.4f}")
+                    # Check predicted classes
+                    preds = torch.argmax(logits, dim=1, keepdim=True)
+                    logging.info(f"Debug - Predicted unique values: {torch.unique(preds)}")
+                    logging.info(f"Debug - Num classes in output: {logits.shape[1]}")
+
                 # Compute loss
                 loss = self.criterion(logits, targets)
+
+                # Debug info for first batch of first epoch
+                if epoch == 0 and i == 0:
+                    logging.info(f"Debug - Loss value: {loss.item():.6f}")
 
                 # Backward pass
                 optimizer.zero_grad()
@@ -259,8 +279,9 @@ class SegLearner(BaseSegLearner):
         self._network.eval()
         self.dice_metric.reset()
 
+        first_sample = True
         with torch.no_grad():
-            for _, inputs, targets in test_loader:
+            for batch_idx, (_, inputs, targets) in enumerate(test_loader):
                 inputs = inputs.to(self._device)
                 targets = targets.to(self._device)
 
@@ -275,11 +296,31 @@ class SegLearner(BaseSegLearner):
 
                 # Compute Dice metric
                 outputs = torch.softmax(outputs, dim=1)
-                outputs = torch.argmax(outputs, dim=1, keepdim=True)
-                self.dice_metric(y_pred=outputs, y=targets)
+                outputs_pred = torch.argmax(outputs, dim=1, keepdim=True)
+
+                # Debug info for first validation sample
+                if first_sample:
+                    logging.info(f"Validation Debug - Output shape: {outputs.shape}")
+                    logging.info(f"Validation Debug - Target unique: {torch.unique(targets)}")
+                    logging.info(f"Validation Debug - Predicted unique: {torch.unique(outputs_pred)}")
+                    # Count pixels per class
+                    for cls in range(outputs.shape[1]):
+                        n_target = (targets == cls).sum().item()
+                        n_pred = (outputs_pred == cls).sum().item()
+                        logging.info(f"Validation Debug - Class {cls}: Target={n_target}, Pred={n_pred}")
+                    first_sample = False
+
+                self.dice_metric(y_pred=outputs_pred, y=targets)
 
         # Get mean Dice score
         mean_dice = self.dice_metric.aggregate().item()
+
+        # Get per-class Dice scores
+        dice_per_class = self.dice_metric.aggregate()
+        if len(dice_per_class.shape) > 0:
+            for cls_idx, dice_val in enumerate(dice_per_class):
+                logging.info(f"Validation Debug - Class {cls_idx} Dice: {dice_val.item():.4f}")
+
         return mean_dice
 
     def _eval_cnn(self, loader):
