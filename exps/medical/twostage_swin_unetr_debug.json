@@ -13,16 +13,16 @@
     "seed": [42],
 
     "init_epochs": 10,
-    "init_lr": 0.0001,
+    "init_lr": 1e-3,
     "later_epochs": 10,
-    "later_lr": 0.0001,
+    "later_lr": 1e-3,
     "batch_size": 2,
     "weight_decay": 0.0001,
     "min_lr": 1e-8,
     "optimizer": "adamw",
-    "scheduler": "cosine",
+    "scheduler": "warmup_cosine",
 
-    "img_size": [128, 128, 128],
+    "img_size": [96, 96, 96],
     "in_channels": 1,
     "out_channels": 13,
     "feature_size": 48,
@@ -36,7 +36,7 @@
     "ffn_adapter_layernorm_option": "none",
 
     "use_init_ptm": false,
-    "alpha": 0.1,
+    "alpha": 4,
     "beta": 0,
     "use_reweight": true,
 
