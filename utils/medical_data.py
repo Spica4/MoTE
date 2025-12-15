@@ -73,6 +73,9 @@ class KakenDataset(Medical3DData):
 
     def _get_train_transforms(self):
         """Get training transforms for Kaken dataset"""
+        # Get img_size from args, default to [96, 96, 96]
+        img_size = tuple(self.args.get("img_size", [96, 96, 96]))
+
         return Compose([
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
@@ -85,11 +88,11 @@ class KakenDataset(Medical3DData):
             NormalizeIntensityd(keys="image"),
             CropForegroundd(keys=["image", "label"], source_key="image"),
             Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 1.5), mode=("bilinear", "nearest")),
-            SpatialPadd(keys=["image", "label"], spatial_size=(128, 128, 128)),
+            SpatialPadd(keys=["image", "label"], spatial_size=img_size),
             RandCropByPosNegLabeld(
                 keys=["image", "label"],
                 label_key="label",
-                spatial_size=(128, 128, 128),
+                spatial_size=img_size,
                 pos=1,
                 neg=1,
                 num_samples=1,
@@ -109,6 +112,9 @@ class KakenDataset(Medical3DData):
 
     def _get_val_transforms(self):
         """Get validation transforms for Kaken dataset"""
+        # Get img_size from args, default to [96, 96, 96]
+        img_size = tuple(self.args.get("img_size", [96, 96, 96]))
+
         return Compose([
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
@@ -121,7 +127,7 @@ class KakenDataset(Medical3DData):
             NormalizeIntensityd(keys="image"),
             CropForegroundd(keys=["image", "label"], source_key="image"),
             Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 1.5), mode=("bilinear", "nearest")),
-            SpatialPadd(keys=["image", "label"], spatial_size=(128, 128, 128)),
+            SpatialPadd(keys=["image", "label"], spatial_size=img_size),
             Lambdad(
                 keys=["label"],
                 func=lambda x: torch.where(x > 6, torch.tensor(0, dtype=x.dtype, device=x.device), x)
@@ -209,6 +215,9 @@ class Amos22Dataset(Medical3DData):
 
     def _get_train_transforms(self):
         """Get training transforms for AMOS22 dataset"""
+        # Get img_size from args, default to [96, 96, 96]
+        img_size = tuple(self.args.get("img_size", [96, 96, 96]))
+
         return Compose([
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
@@ -221,11 +230,11 @@ class Amos22Dataset(Medical3DData):
             NormalizeIntensityd(keys="image"),
             CropForegroundd(keys=["image", "label"], source_key="image"),
             Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 1.5), mode=("bilinear", "nearest")),
-            SpatialPadd(keys=["image", "label"], spatial_size=(128, 128, 128)),
+            SpatialPadd(keys=["image", "label"], spatial_size=img_size),
             RandCropByPosNegLabeld(
                 keys=["image", "label"],
                 label_key="label",
-                spatial_size=(128, 128, 128),
+                spatial_size=img_size,
                 pos=1,
                 neg=1,
                 num_samples=1,
@@ -250,6 +259,9 @@ class Amos22Dataset(Medical3DData):
 
     def _get_val_transforms(self):
         """Get validation transforms for AMOS22 dataset"""
+        # Get img_size from args, default to [96, 96, 96]
+        img_size = tuple(self.args.get("img_size", [96, 96, 96]))
+
         return Compose([
             LoadImaged(keys=["image", "label"]),
             EnsureChannelFirstd(keys=["image", "label"]),
@@ -262,7 +274,7 @@ class Amos22Dataset(Medical3DData):
             NormalizeIntensityd(keys="image"),
             CropForegroundd(keys=["image", "label"], source_key="image"),
             Spacingd(keys=["image", "label"], pixdim=(1.5, 1.5, 1.5), mode=("bilinear", "nearest")),
-            SpatialPadd(keys=["image", "label"], spatial_size=(128, 128, 128)),
+            SpatialPadd(keys=["image", "label"], spatial_size=img_size),
             Lambdad(
                 keys=["label"],
                 func=lambda x: torch.where(

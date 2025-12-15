@@ -56,17 +56,22 @@ class SegLearner(BaseSegLearner):
         self.sw_batch_size = args.get("sw_batch_size", 4)  # Sliding window batch size
 
         # Loss function for segmentation
+        # Exclude background from Dice loss to handle class imbalance
+        # This focuses learning on foreground classes
         self.criterion = DiceCELoss(
-            include_background=True,
+            include_background=False,
             to_onehot_y=True,
             softmax=True,
             squared_pred=True,
             reduction="mean",
+            lambda_dice=1.0,
+            lambda_ce=1.0,
         )
 
         # Metrics for evaluation
+        # Include background in metric to see full segmentation quality
         self.dice_metric = DiceMetric(
-            include_background=True,
+            include_background=False,
             reduction="mean_batch",
             get_not_nans=False,
         )
