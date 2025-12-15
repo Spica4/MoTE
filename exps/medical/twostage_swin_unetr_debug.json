@@ -17,7 +17,7 @@
     "later_epochs": 10,
     "later_lr": 1e-3,
     "batch_size": 2,
-    "weight_decay": 0.0001,
+    "weight_decay": 1e-5,
     "min_lr": 1e-8,
     "optimizer": "adamw",
     "scheduler": "warmup_cosine",
@@ -27,7 +27,7 @@
     "in_channels": 1,
     "out_channels": 13,
     "feature_size": 48,
-    "roi_size": [128, 128, 128],
+    "roi_size": [96, 96, 96],
     "sw_batch_size": 4,
     "val_interval": 2,
 
