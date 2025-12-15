@@ -358,4 +358,6 @@ class SegLearner(BaseSegLearner):
         logging.info(f"Per-class Dice scores: {dice_scores}")
         logging.info(f"Mean Dice: {dice_scores.mean().item():.4f}")
 
-        return np.concatenate(all_preds), np.concatenate(all_targets)
+        # Return lists instead of concatenated arrays
+        # Medical images have varying sizes, so we can't concatenate them
+        return all_preds, all_targets

@@ -96,20 +96,21 @@ class BaseSegLearner(object):
         Evaluate Dice scores for different class groups.
 
         Args:
-            y_pred: Predicted segmentation masks
-            y_true: Ground truth segmentation masks
+            y_pred: List of predicted segmentation masks (variable sizes)
+            y_true: List of ground truth segmentation masks (variable sizes)
 
         Returns:
             Dictionary with Dice scores for different class groups
         """
         ret = {}
 
-        # Compute overall Dice
+        # Compute overall Dice per-sample and average
         self.dice_metric.reset()
-        self.dice_metric(
-            y_pred=torch.from_numpy(y_pred),
-            y=torch.from_numpy(y_true)
-        )
+        for pred, target in zip(y_pred, y_true):
+            self.dice_metric(
+                y_pred=torch.from_numpy(pred),
+                y=torch.from_numpy(target)
+            )
         dice_scores = self.dice_metric.aggregate()
         mean_dice = dice_scores.mean().item()
 
@@ -121,7 +122,7 @@ class BaseSegLearner(object):
             start_cls, end_cls = self._get_task_class_range(task_id)
 
             # Compute Dice for this task's classes
-            task_dice = self._compute_task_dice(y_pred, y_true, start_cls, end_cls)
+            task_dice = self._compute_task_dice_list(y_pred, y_true, start_cls, end_cls)
             ret["grouped"][f"{start_cls}-{end_cls-1}"] = task_dice
 
         # Top-5 not applicable for segmentation, use top1
@@ -137,6 +138,42 @@ class BaseSegLearner(object):
             start = self.init_cls + (task_id - 1) * self.inc
             end = start + self.inc
             return start, end
+
+    def _compute_task_dice_list(self, y_pred_list, y_true_list, start_cls, end_cls):
+        """
+        Compute Dice score for specific class range from lists of predictions.
+
+        Args:
+            y_pred_list: List of predicted masks (variable sizes)
+            y_true_list: List of ground truth masks (variable sizes)
+            start_cls: Start class index
+            end_cls: End class index (exclusive)
+
+        Returns:
+            Mean Dice score for the class range
+        """
+        total_intersection = 0
+        total_union = 0
+
+        # Compute Dice across all samples
+        for y_pred, y_true in zip(y_pred_list, y_true_list):
+            # Create binary masks for task classes
+            pred_mask = np.zeros_like(y_pred, dtype=bool)
+            true_mask = np.zeros_like(y_true, dtype=bool)
+
+            for cls in range(start_cls, end_cls):
+                pred_mask |= (y_pred == cls)
+                true_mask |= (y_true == cls)
+
+            # Accumulate intersection and union
+            total_intersection += np.sum(pred_mask & true_mask)
+            total_union += np.sum(pred_mask) + np.sum(true_mask)
+
+        if total_union == 0:
+            return 0.0
+
+        dice = (2.0 * total_intersection) / total_union
+        return dice * 100  # Return as percentage
 
     def _compute_task_dice(self, y_pred, y_true, start_cls, end_cls):
         """
