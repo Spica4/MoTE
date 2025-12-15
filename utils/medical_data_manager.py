@@ -161,6 +161,11 @@ class MedicalDummyDataset(Dataset):
         if self.transforms is not None:
             data = self.transforms(data)
 
+        # Handle list output from transforms (e.g., RandCropByPosNegLabeld with num_samples > 1)
+        # MONAI sometimes returns a list even with num_samples=1
+        if isinstance(data, list):
+            data = data[0]  # Take the first sample
+
         # Extract image and label
         image = data["image"]
         label = data["label"]
