@@ -438,11 +438,10 @@ def swin_unetr_mote(
         device=device,
     )
 
-    # Freeze base model, only train adapters
-    for name, param in model.named_parameters():
-        if 'cur_adapter' in name:
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
+    # Don't freeze during initialization - allow Task 0 to train the backbone
+    # Freezing will be done after each task via model.freeze() in the training loop
+    # This ensures:
+    #   - Task 0: Full backbone + adapters train (backbone learns from scratch)
+    #   - Task 1+: Only adapters train (backbone frozen after Task 0)
 
     return model
