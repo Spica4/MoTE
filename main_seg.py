@@ -7,10 +7,14 @@ Usage:
 
 import json
 import argparse
+from setproctitle import setproctitle
 from trainer_seg import train
 
 
 def main():
+    # Set process title for easier identification in process lists
+    setproctitle("sokabe_mote_seg")
+
     args = setup_parser().parse_args()
     param = load_json(args.config)
     args = vars(args)  # Converting argparse Namespace to a dict
