@@ -343,6 +343,10 @@ class TwoStageDataset(Medical3DData):
         # Default to using combined class order
         self.current_stage = 0  # 0 for Kaken, 1 for AMOS22
 
+        # Set initial transforms to Kaken's transforms
+        self.train_trsf = self.kaken.train_trsf
+        self.test_trsf = self.kaken.test_trsf
+
     def download_data(self):
         """Load both datasets"""
         self.kaken.download_data()
@@ -376,6 +380,10 @@ class TwoStageDataset(Medical3DData):
         self.train_data_dicts = self.amos22.train_data_dicts
         self.val_data_dicts = self.amos22.val_data_dicts
         self.test_data_dicts = self.amos22.test_data_dicts
+
+        # Update transforms to AMOS22's transforms
+        self.train_trsf = self.amos22.train_trsf
+        self.test_trsf = self.amos22.test_trsf
 
         print("Switched to AMOS22 (stage 2)")
 

@@ -56,6 +56,32 @@ class MedicalDataManager(object):
     def nb_classes(self):
         return len(self._class_order)
 
+    def prepare_task(self, task_id):
+        """
+        Prepare data manager for a specific task.
+
+        For two-stage learning, this switches to stage 2 data when task_id == 1.
+        """
+        if self._current_task != task_id:
+            self._current_task = task_id
+
+            # For two-stage dataset, switch to stage 2 when task_id == 1
+            if self.dataset_name.lower() == "twostage" and task_id == 1:
+                logging.info("Switching to Stage 2 (AMOS22 dataset)")
+                self._idata.switch_to_stage2()
+
+                # Update data references
+                self._train_data_dicts = self._idata.train_data_dicts
+                self._test_data_dicts = self._idata.test_data_dicts
+                if hasattr(self._idata, 'val_data_dicts'):
+                    self._val_data_dicts = self._idata.val_data_dicts
+
+                # Update transforms
+                self._train_trsf = self._idata.train_trsf
+                self._test_trsf = self._idata.test_trsf
+
+                logging.info("Stage 2 preparation complete")
+
     def get_dataset(self, indices, source, mode, appendent=None, ret_data=False, m_rate=None):
         """
         Get dataset for specified indices and mode.
@@ -108,6 +134,7 @@ class MedicalDataManager(object):
 
         # Store dataset reference for two-stage learning
         self._idata = idata
+        self._current_task = -1
 
 
 class MedicalDummyDataset(Dataset):

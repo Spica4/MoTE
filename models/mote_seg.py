@@ -90,6 +90,9 @@ class SegLearner(BaseSegLearner):
         self._cur_task += 1
         self._total_classes = self._known_classes + data_manager.get_task_size(self._cur_task)
 
+        # Prepare data manager for current task (switches dataset for stage 2)
+        data_manager.prepare_task(self._cur_task)
+
         # Update network output channels
         self._network.update_fc(self._total_classes + 1)  # +1 for background
 
