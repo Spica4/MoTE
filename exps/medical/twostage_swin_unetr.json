@@ -20,7 +20,8 @@
     "weight_decay": 0.0001,
     "min_lr": 1e-8,
     "optimizer": "adamw",
-    "scheduler": "cosine",
+    "scheduler": "warmup_cosine",
+    "warmup_epochs": 10,
 
     "img_size": [128, 128, 128],
     "in_channels": 1,

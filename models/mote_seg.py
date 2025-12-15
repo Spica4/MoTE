@@ -189,6 +189,33 @@ class SegLearner(BaseSegLearner):
             scheduler = optim.lr_scheduler.CosineAnnealingLR(
                 optimizer=optimizer, T_max=epochs, eta_min=self.min_lr
             )
+        elif self.args["scheduler"] == 'warmup_cosine':
+            # Warmup + Cosine Annealing scheduler
+            warmup_epochs = self.args.get("warmup_epochs", max(1, int(epochs * 0.1)))  # Default: 10% of total epochs
+
+            # Linear warmup scheduler
+            warmup_scheduler = optim.lr_scheduler.LinearLR(
+                optimizer=optimizer,
+                start_factor=0.01,  # Start from 1% of initial lr
+                end_factor=1.0,
+                total_iters=warmup_epochs
+            )
+
+            # Cosine annealing scheduler after warmup
+            cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                optimizer=optimizer,
+                T_max=epochs - warmup_epochs,
+                eta_min=self.min_lr
+            )
+
+            # Combine warmup and cosine schedulers
+            scheduler = optim.lr_scheduler.SequentialLR(
+                optimizer=optimizer,
+                schedulers=[warmup_scheduler, cosine_scheduler],
+                milestones=[warmup_epochs]
+            )
+
+            logging.info(f"Using warmup_cosine scheduler: warmup_epochs={warmup_epochs}, total_epochs={epochs}")
         elif self.args["scheduler"] == 'steplr':
             milestones = self.args.get("init_milestones", [60, 120, 170])
             gamma = self.args.get("init_lr_decay", 0.1)

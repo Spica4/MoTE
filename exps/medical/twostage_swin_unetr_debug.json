@@ -21,6 +21,7 @@
     "min_lr": 1e-8,
     "optimizer": "adamw",
     "scheduler": "warmup_cosine",
+    "warmup_epochs": 1,
 
     "img_size": [96, 96, 96],
     "in_channels": 1,
