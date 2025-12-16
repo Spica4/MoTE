@@ -99,7 +99,19 @@ def _train(args):
         if os.path.exists(checkpoint_path):
             logging.info(f"Loading checkpoint from {checkpoint_path}")
             checkpoint = torch.load(checkpoint_path)
-            model._network.load_state_dict(checkpoint["model_state_dict"])
+
+            # Load state dict with strict=False to allow partial loading
+            # This is necessary because the output layer size changes between tasks
+            # (Task 0: 7 classes, Task 1: 13 classes)
+            missing_keys, unexpected_keys = model._network.load_state_dict(
+                checkpoint["model_state_dict"], strict=False
+            )
+
+            if missing_keys:
+                logging.info(f"Missing keys (will use initialized values): {missing_keys}")
+            if unexpected_keys:
+                logging.info(f"Unexpected keys (ignored): {unexpected_keys}")
+
             model._cur_task = checkpoint["task_id"]
             model._known_classes = checkpoint["known_classes"]
             model._total_classes = checkpoint["total_classes"]
