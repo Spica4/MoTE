@@ -100,13 +100,36 @@ def _train(args):
             logging.info(f"Loading checkpoint from {checkpoint_path}")
             checkpoint = torch.load(checkpoint_path)
 
-            # Load state dict with strict=False to allow partial loading
+            # Filter checkpoint state dict to remove keys with size mismatches
             # This is necessary because the output layer size changes between tasks
             # (Task 0: 7 classes, Task 1: 13 classes)
+            checkpoint_state = checkpoint["model_state_dict"]
+            model_state = model._network.state_dict()
+
+            filtered_state = {}
+            skipped_keys = []
+
+            for key, value in checkpoint_state.items():
+                if key in model_state:
+                    if value.shape == model_state[key].shape:
+                        # Shapes match, can load this parameter
+                        filtered_state[key] = value
+                    else:
+                        # Shape mismatch, skip this parameter
+                        skipped_keys.append(f"{key} (checkpoint: {value.shape}, model: {model_state[key].shape})")
+                else:
+                    # Key exists in checkpoint but not in model
+                    filtered_state[key] = value
+
+            # Load filtered state dict with strict=False
             missing_keys, unexpected_keys = model._network.load_state_dict(
-                checkpoint["model_state_dict"], strict=False
+                filtered_state, strict=False
             )
 
+            if skipped_keys:
+                logging.info(f"Skipped keys due to size mismatch:")
+                for key in skipped_keys:
+                    logging.info(f"  - {key}")
             if missing_keys:
                 logging.info(f"Missing keys (will use initialized values): {missing_keys}")
             if unexpected_keys:
