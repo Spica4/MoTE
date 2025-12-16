@@ -37,6 +37,13 @@ def _train(args):
     if not os.path.exists(logs_name):
         os.makedirs(logs_name)
 
+    # Create checkpoint directory
+    checkpoint_dir = "checkpoints/{}/{}/{}/{}".format(
+        args["model_name"], args["dataset"], init_cls, args["increment"]
+    )
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+
     logfilename = "logs_seg/{}/{}/{}/{}/{}_{}_{}".format(
         args["model_name"],
         args["dataset"],
@@ -80,8 +87,31 @@ def _train(args):
     dice_curve = {"mean": [], "per_task": []}
     dice_matrix = []
 
+    # Determine starting task
+    start_task = args.get("start_task", 0)
+
+    # Load checkpoint if resuming from a specific task
+    if start_task > 0:
+        checkpoint_path = os.path.join(
+            checkpoint_dir, f"task_{start_task - 1}_checkpoint.pth"
+        )
+        if os.path.exists(checkpoint_path):
+            logging.info(f"Loading checkpoint from {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path)
+            model._network.load_state_dict(checkpoint["model_state_dict"])
+            model._cur_task = checkpoint["task_id"]
+            model._known_classes = checkpoint["known_classes"]
+            model._total_classes = checkpoint["total_classes"]
+            dice_curve = checkpoint.get("dice_curve", {"mean": [], "per_task": []})
+            dice_matrix = checkpoint.get("dice_matrix", [])
+            logging.info(f"Resumed from Task {start_task - 1}")
+            logging.info(f"Known classes: {model._known_classes}, Total classes: {model._total_classes}")
+        else:
+            logging.warning(f"Checkpoint not found at {checkpoint_path}, starting from Task 0")
+            start_task = 0
+
     # Train on each task
-    for task in range(data_manager.nb_tasks):
+    for task in range(start_task, data_manager.nb_tasks):
         logging.info("=" * 50)
         logging.info(f"Starting Task {task}")
         logging.info("=" * 50)
@@ -100,6 +130,21 @@ def _train(args):
 
         # After task operations
         model.after_task()
+
+        # Save checkpoint after each task
+        checkpoint_path = os.path.join(checkpoint_dir, f"task_{task}_checkpoint.pth")
+        checkpoint = {
+            "task_id": model._cur_task,
+            "known_classes": model._known_classes,
+            "total_classes": model._total_classes,
+            "model_state_dict": model._network.state_dict(),
+            "dice_curve": dice_curve,
+            "dice_matrix": dice_matrix,
+            "args": args,
+        }
+        torch.save(checkpoint, checkpoint_path)
+        logging.info(f"Checkpoint saved to {checkpoint_path}")
+        logging.info(f"Task {task} completed and saved")
 
         if cnn_accy is not None:
             logging.info("Dice scores: {}".format(cnn_accy["grouped"]))
