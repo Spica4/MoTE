@@ -80,12 +80,16 @@ class BaseSegLearner(object):
 
     def eval_task(self):
         """
-        Evaluate model on all seen tasks.
+        Evaluate model on all seen tasks using TEST set (final evaluation only).
+
+        This is called after training is complete to evaluate the final model
+        performance on the held-out test set.
 
         Returns:
             cnn_accy: Dictionary with Dice scores
             nme_accy: None (not used for segmentation)
         """
+        # Use test_loader for final evaluation (not used during training)
         y_pred, y_true = self._eval_cnn(self.test_loader)
         cnn_accy = self._evaluate_dice(y_pred, y_true)
 

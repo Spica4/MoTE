@@ -88,11 +88,13 @@ class MedicalDataManager(object):
 
         For medical segmentation:
         - indices: class indices to include (e.g., [1, 2, 3, 4, 5, 6] for task 0)
-        - source: 'train' or 'test'
+        - source: 'train', 'val', or 'test'
         - mode: 'train' or 'test' (affects transforms)
         """
         if source == "train":
             data_dicts = self._train_data_dicts
+        elif source == "val":
+            data_dicts = self._val_data_dicts
         elif source == "test":
             data_dicts = self._test_data_dicts
         else:

@@ -120,6 +120,19 @@ class SegLearner(BaseSegLearner):
             pin_memory=True,
         )
 
+        # Validation dataset (used during training)
+        self.val_dataset = data_manager.get_dataset(
+            np.arange(0, self._total_classes), source="val", mode="test"
+        )
+        self.val_loader = DataLoader(
+            self.val_dataset,
+            batch_size=1,  # Batch size 1 for sliding window inference
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+        # Test dataset (used only for final evaluation)
         self.test_dataset = data_manager.get_dataset(
             np.arange(0, self._total_classes), source="test", mode="test"
         )
@@ -136,7 +149,8 @@ class SegLearner(BaseSegLearner):
             print('Multiple GPUs')
             self._network = nn.DataParallel(self._network, self._multiple_gpus)
 
-        self._train(self.train_loader, self.test_loader)
+        # Use val_loader for validation during training
+        self._train(self.train_loader, self.val_loader)
 
         if len(self._multiple_gpus) > 1:
             self._network = self._network.module
@@ -145,8 +159,14 @@ class SegLearner(BaseSegLearner):
         self._network.freeze()
         self._network.backbone.add_adapter_to_list()
 
-    def _train(self, train_loader, test_loader):
-        """Main training loop"""
+    def _train(self, train_loader, val_loader):
+        """
+        Main training loop.
+
+        Args:
+            train_loader: DataLoader for training data
+            val_loader: DataLoader for validation data (used during training)
+        """
         self._network.to(self._device)
 
         # Get epochs and learning rate
@@ -160,7 +180,7 @@ class SegLearner(BaseSegLearner):
             optimizer = self.get_optimizer(lr=lr)
             scheduler = self.get_scheduler(optimizer, epochs)
 
-        self._init_train(train_loader, test_loader, optimizer, scheduler, epochs)
+        self._init_train(train_loader, val_loader, optimizer, scheduler, epochs)
 
     def get_optimizer(self, lr):
         """Get optimizer for training"""
@@ -234,8 +254,17 @@ class SegLearner(BaseSegLearner):
 
         return scheduler
 
-    def _init_train(self, train_loader, test_loader, optimizer, scheduler, epochs):
-        """Training loop for current task"""
+    def _init_train(self, train_loader, val_loader, optimizer, scheduler, epochs):
+        """
+        Training loop for current task.
+
+        Args:
+            train_loader: DataLoader for training data
+            val_loader: DataLoader for validation data
+            optimizer: Optimizer for training
+            scheduler: Learning rate scheduler
+            epochs: Number of training epochs
+        """
         prog_bar = tqdm(range(epochs))
 
         for epoch in prog_bar:
@@ -263,9 +292,9 @@ class SegLearner(BaseSegLearner):
             if scheduler is not None:
                 scheduler.step()
 
-            # Validation
+            # Validation (using validation set)
             if (epoch + 1) % self.args.get("val_interval", 5) == 0:
-                mean_dice = self._validate(test_loader)
+                mean_dice = self._validate(val_loader)
                 logging.info(
                     "Task {}, Epoch {}/{} => Loss {:.3f}, Val Dice {:.4f}".format(
                         self._cur_task,
@@ -286,13 +315,21 @@ class SegLearner(BaseSegLearner):
 
         logging.info(info)
 
-    def _validate(self, test_loader):
-        """Validate model on test set"""
+    def _validate(self, val_loader):
+        """
+        Validate model on validation set.
+
+        Args:
+            val_loader: DataLoader for validation data
+
+        Returns:
+            mean_dice: Mean Dice score across validation samples
+        """
         self._network.eval()
         self.dice_metric.reset()
 
         with torch.no_grad():
-            for batch_idx, (_, inputs, targets) in enumerate(test_loader):
+            for batch_idx, (_, inputs, targets) in enumerate(val_loader):
                 inputs = inputs.to(self._device)
                 targets = targets.to(self._device)
 
