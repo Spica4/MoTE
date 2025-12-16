@@ -14,8 +14,14 @@
 
 ### **方法1: 全タスクを一度に実行（従来通り）**
 
+**デバッグ用（短時間）:**
 ```bash
 python main_seg.py --config exps/medical/twostage_swin_unetr_debug.json
+```
+
+**本番用（フル学習）:**
+```bash
+python main_seg.py --config exps/medical/twostage_swin_unetr.json
 ```
 
 - Task 0 → Task 1 の順に自動実行
@@ -25,8 +31,14 @@ python main_seg.py --config exps/medical/twostage_swin_unetr_debug.json
 
 ### **方法2: Task 0 のみ実行**
 
+**デバッグ用（短時間）:**
 ```bash
 python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task0.json
+```
+
+**本番用（フル学習）:**
+```bash
+python main_seg.py --config exps/medical/twostage_swin_unetr_task0.json
 ```
 
 **実行内容:**
@@ -43,8 +55,14 @@ checkpoints/mote_seg/twostage/6/6/task_0_checkpoint.pth
 
 ### **方法3: Task 1 のみ実行（Task 0 のチェックポイントから再開）**
 
+**デバッグ用（短時間）:**
 ```bash
 python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task1.json
+```
+
+**本番用（フル学習）:**
+```bash
+python main_seg.py --config exps/medical/twostage_swin_unetr_task1.json
 ```
 
 **実行内容:**
@@ -129,6 +147,7 @@ Epoch 100: Val Dice = 0.7150
 
 ### シナリオ1: Task 0 を実行して結果を確認
 
+**デバッグ時（動作確認）:**
 ```bash
 # Task 0 を実行
 python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task0.json
@@ -137,11 +156,29 @@ python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task0.json
 # Val Dice が良好なら Task 1 へ進む
 ```
 
+**本番時（フル学習）:**
+```bash
+# Task 0 を実行（100エポック）
+python main_seg.py --config exps/medical/twostage_swin_unetr_task0.json
+
+# 結果を確認
+# Val Dice が良好なら Task 1 へ進む
+```
+
 ### シナリオ2: Task 1 で失敗したので再実行
 
+**デバッグ時:**
 ```bash
 # Task 1 のみ再実行（Task 0 のチェックポイントから）
 python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task1.json
+
+# Task 0 の学習は不要
+```
+
+**本番時:**
+```bash
+# Task 1 のみ再実行（Task 0 のチェックポイントから）
+python main_seg.py --config exps/medical/twostage_swin_unetr_task1.json
 
 # Task 0 の学習は不要
 ```
@@ -150,14 +187,14 @@ python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task1.json
 
 ```bash
 # 1. Task 0 を実行（一度だけ）
-python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task0.json
+python main_seg.py --config exps/medical/twostage_swin_unetr_task0.json
 
 # 2. Task 1 の設定を変更
-# exps/medical/twostage_swin_unetr_debug_task1.json の
+# exps/medical/twostage_swin_unetr_task1.json の
 # ffn_num を 64 → 256 に変更
 
 # 3. Task 1 を実行
-python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task1.json
+python main_seg.py --config exps/medical/twostage_swin_unetr_task1.json
 
 # 4. 結果が良くなければ、別の設定で再度 Task 1 のみ実行
 ```
@@ -185,20 +222,39 @@ python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task1.json
 ### Q: Task 1 で "Checkpoint not found" エラーが出る
 
 **A:** Task 0 のチェックポイントが存在しません。
+
+**デバッグ時:**
 ```bash
 # Task 0 を先に実行
 python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task0.json
 ```
 
+**本番時:**
+```bash
+# Task 0 を先に実行
+python main_seg.py --config exps/medical/twostage_swin_unetr_task0.json
+```
+
 ### Q: Task 1 の結果が悪い。Task 0 からやり直す必要がある？
 
 **A:** 不要です。Task 1 の設定を変更して再実行してください。
+
+**デバッグ時:**
 ```bash
 # Task 1 の設定ファイルを編集
 # 例: ffn_num を増やす、学習率を変える
 
 # Task 1 のみ再実行
 python main_seg.py --config exps/medical/twostage_swin_unetr_debug_task1.json
+```
+
+**本番時:**
+```bash
+# Task 1 の設定ファイルを編集
+# 例: ffn_num を増やす、学習率を変える
+
+# Task 1 のみ再実行
+python main_seg.py --config exps/medical/twostage_swin_unetr_task1.json
 ```
 
 ---

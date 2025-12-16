@@ -1,0 +1,49 @@
+{
+    "prefix": "medical_seg_task0",
+    "dataset": "twostage",
+    "memory_size": 0,
+    "memory_per_class": 0,
+    "fixed_memory": false,
+    "shuffle": false,
+    "init_cls": 6,
+    "increment": 6,
+    "model_name": "mote_seg",
+    "backbone_type": "swin_unetr_mote",
+    "device": ["0"],
+    "seed": [42],
+
+    "start_task": 0,
+
+    "init_epochs": 100,
+    "init_lr": 0.0001,
+    "later_epochs": 100,
+    "later_lr": 0.0001,
+    "batch_size": 2,
+    "weight_decay": 0.0001,
+    "min_lr": 1e-8,
+    "optimizer": "adamw",
+    "scheduler": "warmup_cosine",
+    "warmup_epochs": 10,
+
+    "img_size": [128, 128, 128],
+    "in_channels": 1,
+    "out_channels": 13,
+    "feature_size": 48,
+    "roi_size": [128, 128, 128],
+    "sw_batch_size": 4,
+    "val_interval": 5,
+
+    "ffn_num": 64,
+    "ffn_adapter_init_option": "lora",
+    "ffn_adapter_scalar": "0.1",
+    "ffn_adapter_layernorm_option": "none",
+
+    "use_init_ptm": false,
+    "alpha": 0.1,
+    "beta": 0,
+    "use_reweight": true,
+
+    "moni_adam": false,
+    "adapter_num": -1,
+    "print_forget": true
+}
