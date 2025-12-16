@@ -90,7 +90,8 @@ class BaseSegLearner(object):
             nme_accy: None (not used for segmentation)
         """
         # Use test_loader for final evaluation (not used during training)
-        y_pred, y_true = self._eval_cnn(self.test_loader)
+        # Save predictions as nii.gz files
+        y_pred, y_true = self._eval_cnn(self.test_loader, save_predictions=True)
         cnn_accy = self._evaluate_dice(y_pred, y_true)
 
         return cnn_accy, None

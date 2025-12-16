@@ -19,6 +19,8 @@ from monai.losses import DiceLoss, DiceCELoss
 from monai.metrics import DiceMetric
 from monai.inferers import sliding_window_inference
 import copy
+import os
+import nibabel as nib
 
 num_workers = 4  # Reduced for 3D medical images (memory intensive)
 
@@ -371,9 +373,13 @@ class SegLearner(BaseSegLearner):
 
         return mean_dice
 
-    def _eval_cnn(self, loader):
+    def _eval_cnn(self, loader, save_predictions=False):
         """
         Evaluate model using segmentation metrics.
+
+        Args:
+            loader: DataLoader for test data
+            save_predictions: If True, save predictions as nii.gz files
 
         Returns predictions and ground truth for Dice computation.
         """
@@ -383,8 +389,14 @@ class SegLearner(BaseSegLearner):
         all_preds = []
         all_targets = []
 
+        # Create predictions directory if saving
+        if save_predictions:
+            pred_dir = os.path.join("predictions", f"task_{self._cur_task}")
+            os.makedirs(pred_dir, exist_ok=True)
+            logging.info(f"Saving predictions to {pred_dir}")
+
         with torch.no_grad():
-            for _, inputs, targets in loader:
+            for batch_idx, (idx, inputs, targets) in enumerate(loader):
                 inputs = inputs.to(self._device)
                 targets = targets.to(self._device)
 
@@ -404,8 +416,37 @@ class SegLearner(BaseSegLearner):
                 # Compute Dice
                 self.dice_metric(y_pred=preds, y=targets)
 
-                all_preds.append(preds.cpu().numpy())
-                all_targets.append(targets.cpu().numpy())
+                # Convert to numpy for storage
+                preds_np = preds.cpu().numpy()
+                targets_np = targets.cpu().numpy()
+
+                all_preds.append(preds_np)
+                all_targets.append(targets_np)
+
+                # Save prediction as nii.gz if requested
+                if save_predictions:
+                    # Get the original image path from the dataset
+                    data_dict = loader.dataset.data_dicts[idx.item() if torch.is_tensor(idx) else idx]
+                    original_img_path = data_dict["image"]
+
+                    # Load original image to get affine and header
+                    original_img = nib.load(original_img_path)
+                    affine = original_img.affine
+                    header = original_img.header
+
+                    # Create nifti image from prediction
+                    # Remove batch and channel dimensions: [1, 1, H, W, D] -> [H, W, D]
+                    pred_data = preds_np[0, 0, :, :, :]
+
+                    # Create nifti image
+                    pred_nifti = nib.Nifti1Image(pred_data.astype(np.int16), affine, header)
+
+                    # Save prediction
+                    pred_filename = os.path.basename(original_img_path).replace(".nii.gz", "_pred.nii.gz")
+                    pred_path = os.path.join(pred_dir, pred_filename)
+                    nib.save(pred_nifti, pred_path)
+
+                    logging.info(f"Saved prediction [{batch_idx + 1}/{len(loader)}]: {pred_path}")
 
         # Get per-class Dice scores
         dice_scores = self.dice_metric.aggregate()
