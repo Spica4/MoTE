@@ -267,6 +267,10 @@ class SegLearner(BaseSegLearner):
         """
         prog_bar = tqdm(range(epochs))
 
+        # Track best model
+        best_dice = 0.0
+        best_model_state = None
+
         for epoch in prog_bar:
             self._network.train()
 
@@ -295,6 +299,13 @@ class SegLearner(BaseSegLearner):
             # Validation (using validation set)
             if (epoch + 1) % self.args.get("val_interval", 5) == 0:
                 mean_dice = self._validate(val_loader)
+
+                # Save best model
+                if mean_dice > best_dice:
+                    best_dice = mean_dice
+                    best_model_state = copy.deepcopy(self._network.state_dict())
+                    logging.info(f"New best model! Val Dice: {best_dice:.4f}")
+
                 logging.info(
                     "Task {}, Epoch {}/{} => Loss {:.3f}, Val Dice {:.4f}".format(
                         self._cur_task,
@@ -314,6 +325,13 @@ class SegLearner(BaseSegLearner):
             prog_bar.set_description(info)
 
         logging.info(info)
+
+        # Load best model after training
+        if best_model_state is not None:
+            self._network.load_state_dict(best_model_state)
+            logging.info(f"Loaded best model with Val Dice: {best_dice:.4f}")
+        else:
+            logging.warning("No validation performed, using final epoch model")
 
     def _validate(self, val_loader):
         """

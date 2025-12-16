@@ -68,12 +68,29 @@ checkpoints/mote_seg/twostage/6/6/task_0_checkpoint.pth
     "task_id": 0,                    # 完了したタスク ID
     "known_classes": 6,              # 学習済みクラス数
     "total_classes": 6,              # 現在の総クラス数
-    "model_state_dict": {...},       # モデルの重み
+    "model_state_dict": {...},       # モデルの重み（Best model）
     "dice_curve": {...},             # Dice score の履歴
     "dice_matrix": [...],            # タスクごとの Dice matrix
     "args": {...}                    # 実行時の設定
 }
 ```
+
+### 重要：Best Model の保存
+
+チェックポイントには**Validation Dice が最も高かったエポックの重み**が保存されます。
+
+**例:**
+```
+Epoch 40: Val Dice = 0.7182
+Epoch 50: Val Dice = 0.7361  ← 最高
+Epoch 60: Val Dice = 0.7278
+...
+Epoch 100: Val Dice = 0.7150
+
+→ Epoch 50 の重みをチェックポイントに保存
+```
+
+これにより、過学習（overfitting）を防ぎ、最良のモデルを次のタスクに引き継ぎます。
 
 ---
 
