@@ -13,6 +13,7 @@
     "seed": [42],
 
     "start_task": 0,
+    "end_task": 1,
 
     "init_epochs": 100,
     "init_lr": 0.0001,

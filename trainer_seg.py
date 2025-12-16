@@ -87,8 +87,9 @@ def _train(args):
     dice_curve = {"mean": [], "per_task": []}
     dice_matrix = []
 
-    # Determine starting task
+    # Determine starting and ending task
     start_task = args.get("start_task", 0)
+    end_task = args.get("end_task", data_manager.nb_tasks)  # Default: run all remaining tasks
 
     # Load checkpoint if resuming from a specific task
     if start_task > 0:
@@ -110,8 +111,10 @@ def _train(args):
             logging.warning(f"Checkpoint not found at {checkpoint_path}, starting from Task 0")
             start_task = 0
 
+    logging.info(f"Will execute tasks from {start_task} to {end_task - 1} (inclusive)")
+
     # Train on each task
-    for task in range(start_task, data_manager.nb_tasks):
+    for task in range(start_task, end_task):
         logging.info("=" * 50)
         logging.info(f"Starting Task {task}")
         logging.info("=" * 50)
