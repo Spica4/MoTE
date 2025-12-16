@@ -21,6 +21,7 @@ from monai.inferers import sliding_window_inference
 import copy
 import os
 import nibabel as nib
+import csv
 
 num_workers = 4  # Reduced for 3D medical images (memory intensive)
 
@@ -373,6 +374,37 @@ class SegLearner(BaseSegLearner):
 
         return mean_dice
 
+    def _compute_per_organ_dice(self, pred, target, num_classes=13):
+        """
+        Compute Dice score for each organ class.
+
+        Args:
+            pred: Prediction array [1, H, W, D]
+            target: Ground truth array [1, H, W, D]
+            num_classes: Number of classes (including background)
+
+        Returns:
+            List of Dice scores for each class (0-12)
+        """
+        dice_scores = []
+
+        for class_id in range(num_classes):
+            pred_mask = (pred == class_id)
+            target_mask = (target == class_id)
+
+            intersection = np.sum(pred_mask & target_mask)
+            union = np.sum(pred_mask) + np.sum(target_mask)
+
+            if union == 0:
+                # If both pred and target are empty for this class, Dice = NaN
+                dice = np.nan
+            else:
+                dice = (2.0 * intersection) / union
+
+            dice_scores.append(dice)
+
+        return dice_scores
+
     def _eval_cnn(self, loader, save_predictions=False):
         """
         Evaluate model using segmentation metrics.
@@ -388,6 +420,26 @@ class SegLearner(BaseSegLearner):
 
         all_preds = []
         all_targets = []
+
+        # For CSV export
+        csv_results = []  # List of dicts with filename and per-organ dice scores
+
+        # Organ names in Japanese (classes 1-12)
+        organ_names = [
+            "背景",  # Class 0 (background)
+            "大動脈",  # Class 1
+            "食道",  # Class 2
+            "肝臓",  # Class 3
+            "胆嚢",  # Class 4
+            "胃",  # Class 5
+            "脾臓",  # Class 6
+            "右腎臓",  # Class 7
+            "左腎臓",  # Class 8
+            "下大動脈",  # Class 9
+            "膵臓",  # Class 10
+            "膀胱",  # Class 11
+            "子宮",  # Class 12
+        ]
 
         # Create predictions directory if saving
         if save_predictions:
@@ -423,12 +475,33 @@ class SegLearner(BaseSegLearner):
                 all_preds.append(preds_np)
                 all_targets.append(targets_np)
 
+                # Get the original image path from the dataset
+                data_dict = loader.dataset.data_dicts[idx.item() if torch.is_tensor(idx) else idx]
+                original_img_path = data_dict["image"]
+                filename = os.path.basename(original_img_path)
+
+                # Compute per-organ Dice scores for this image
+                per_organ_dice = self._compute_per_organ_dice(preds_np[0], targets_np[0])
+
+                # Store results for CSV export
+                result_row = {"filename": filename}
+                for class_id in range(1, 13):  # Classes 1-12 only
+                    organ_name = organ_names[class_id]
+                    dice_value = per_organ_dice[class_id]
+                    result_row[organ_name] = dice_value
+
+                # Compute average Dice across organs (excluding background and NaN values)
+                valid_dice_scores = [per_organ_dice[i] for i in range(1, 13) if not np.isnan(per_organ_dice[i])]
+                if valid_dice_scores:
+                    avg_dice = np.mean(valid_dice_scores)
+                else:
+                    avg_dice = 0.0
+                result_row["平均"] = avg_dice
+
+                csv_results.append(result_row)
+
                 # Save prediction as nii.gz if requested
                 if save_predictions:
-                    # Get the original image path from the dataset
-                    data_dict = loader.dataset.data_dicts[idx.item() if torch.is_tensor(idx) else idx]
-                    original_img_path = data_dict["image"]
-
                     # Load original image to get affine and header
                     original_img = nib.load(original_img_path)
                     affine = original_img.affine
@@ -453,6 +526,20 @@ class SegLearner(BaseSegLearner):
 
         logging.info(f"Per-class Dice scores: {dice_scores}")
         logging.info(f"Mean Dice: {dice_scores.mean().item():.4f}")
+
+        # Save results to CSV if we have predictions
+        if save_predictions and csv_results:
+            csv_dir = os.path.join("predictions", f"task_{self._cur_task}")
+            csv_path = os.path.join(csv_dir, f"evaluation_results_task_{self._cur_task}.csv")
+
+            # Write CSV file
+            fieldnames = ["filename"] + [organ_names[i] for i in range(1, 13)] + ["平均"]
+            with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(csv_results)
+
+            logging.info(f"Saved evaluation results to {csv_path}")
 
         # Return lists instead of concatenated arrays
         # Medical images have varying sizes, so we can't concatenate them
