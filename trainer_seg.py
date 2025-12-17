@@ -140,8 +140,15 @@ def _train(args):
             model._total_classes = checkpoint["total_classes"]
             dice_curve = checkpoint.get("dice_curve", {"mean": [], "per_task": []})
             dice_matrix = checkpoint.get("dice_matrix", [])
+
+            # IMPORTANT: Freeze backbone and create new adapter for next task
+            # This ensures only the new adapter is trainable for Task 1
+            model._network.freeze()
+            model._network.backbone.add_adapter_to_list()
+
             logging.info(f"Resumed from Task {start_task - 1}")
             logging.info(f"Known classes: {model._known_classes}, Total classes: {model._total_classes}")
+            logging.info(f"Froze backbone and created new adapter for Task {start_task}")
         else:
             logging.warning(f"Checkpoint not found at {checkpoint_path}, starting from Task 0")
             start_task = 0
