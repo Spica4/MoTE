@@ -50,15 +50,24 @@ def load_checkpoint(checkpoint_path, args):
     args.update(checkpoint.get("args", {}))
 
     # チェックポイントのクラス数でモデルを初期化
-    checkpoint_total_classes = checkpoint.get("total_classes", 13)
+    # IMPORTANT: Use output layer size from state_dict to get correct number of classes
+    # Sometimes checkpoint["total_classes"] doesn't match the actual output layer size
+    checkpoint_state = checkpoint["model_state_dict"]
+    if "backbone.base_model.out.conv.conv.weight" in checkpoint_state:
+        output_layer_shape = checkpoint_state["backbone.base_model.out.conv.conv.weight"].shape
+        checkpoint_total_classes = output_layer_shape[0]  # First dimension is number of classes
+        logging.info(f"出力層のサイズから検出: {checkpoint_total_classes}クラス")
+    else:
+        checkpoint_total_classes = checkpoint.get("total_classes", 13)
+        logging.info(f"チェックポイントのメタデータから読み取り: {checkpoint_total_classes}クラス")
+
     args["out_channels"] = checkpoint_total_classes
     logging.info(f"モデルを{checkpoint_total_classes}クラスで初期化")
 
     # モデル作成
     model = factory.get_model(args["model_name"], args)
 
-    # state dictをフィルタリング（サイズ不一致を処理）
-    checkpoint_state = checkpoint["model_state_dict"]
+    # state dictをロード（出力層のサイズは一致しているはず）
     model_state = model._network.state_dict()
 
     filtered_state = {}
@@ -74,11 +83,11 @@ def load_checkpoint(checkpoint_path, args):
             skipped_keys.append(f"{key} (現在のモデルに存在しません)")
 
     if skipped_keys:
-        logging.info(f"サイズ不一致により{len(skipped_keys)}個のパラメータをスキップ:")
+        logging.warning(f"警告: {len(skipped_keys)}個のパラメータをスキップ:")
         for key in skipped_keys[:5]:
-            logging.info(f"  - {key}")
+            logging.warning(f"  - {key}")
         if len(skipped_keys) > 5:
-            logging.info(f"  ... 他{len(skipped_keys) - 5}個")
+            logging.warning(f"  ... 他{len(skipped_keys) - 5}個")
 
     # フィルタリングしたstate dictをロード
     model._network.load_state_dict(filtered_state, strict=False)
