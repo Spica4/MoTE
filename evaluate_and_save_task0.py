@@ -234,8 +234,8 @@ def evaluate_and_save(model, data_manager, args, data_split="test", output_dir="
             outputs = torch.softmax(outputs, dim=1)
             preds = torch.argmax(outputs, dim=1, keepdim=True)
 
-            # デバッグ: 最初のサンプルの確率分布を表示
-            if batch_idx == 0:
+            # デバッグ: 最初の3サンプルの確率分布を表示
+            if batch_idx < 3:
                 # 中央付近のスライスの確率分布を確認
                 center_z = outputs.shape[4] // 2
                 center_y = outputs.shape[3] // 2
@@ -243,7 +243,7 @@ def evaluate_and_save(model, data_manager, args, data_split="test", output_dir="
                 center_probs = outputs[0, :, center_x, center_y, center_z].cpu().numpy()
 
                 logging.info("=" * 60)
-                logging.info("デバッグ: 最初のサンプルの中央ピクセルの確率分布")
+                logging.info(f"デバッグ: サンプル {batch_idx + 1} の中央ピクセルの確率分布")
                 for class_id in range(len(center_probs)):
                     class_name = organ_names.get(class_id, f"クラス{class_id}")
                     logging.info(f"  {class_name:10s}: {center_probs[class_id]:.6f}")
