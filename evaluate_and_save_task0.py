@@ -98,6 +98,27 @@ def load_checkpoint(checkpoint_path, args):
     logging.info(f"Task {checkpoint['task_id']}のチェックポイントをロード完了")
     logging.info(f"既知クラス: {checkpoint['known_classes']}, 総クラス数: {checkpoint['total_classes']}")
 
+    # デバッグ: 出力層の重みがロードされているか確認
+    out_weight_key = "backbone.base_model.out.conv.conv.weight"
+    out_bias_key = "backbone.base_model.out.conv.conv.bias"
+
+    if out_weight_key in filtered_state:
+        logging.info(f"✓ 出力層の重みをロード: {filtered_state[out_weight_key].shape}")
+        # 重みの統計を表示
+        weight_mean = filtered_state[out_weight_key].mean().item()
+        weight_std = filtered_state[out_weight_key].std().item()
+        logging.info(f"  重み統計 - 平均: {weight_mean:.6f}, 標準偏差: {weight_std:.6f}")
+    else:
+        logging.error(f"✗ 出力層の重みがロードされていません！")
+
+    if out_bias_key in filtered_state:
+        logging.info(f"✓ 出力層のバイアスをロード: {filtered_state[out_bias_key].shape}")
+        # バイアスの値を表示
+        bias_values = filtered_state[out_bias_key].cpu().numpy()
+        logging.info(f"  バイアス値: {bias_values}")
+    else:
+        logging.error(f"✗ 出力層のバイアスがロードされていません！")
+
     return model, checkpoint
 
 
@@ -212,6 +233,30 @@ def evaluate_and_save(model, data_manager, args, data_split="test", output_dir="
             # 予測取得
             outputs = torch.softmax(outputs, dim=1)
             preds = torch.argmax(outputs, dim=1, keepdim=True)
+
+            # デバッグ: 最初のサンプルの確率分布を表示
+            if batch_idx == 0:
+                # 中央付近のスライスの確率分布を確認
+                center_z = outputs.shape[4] // 2
+                center_y = outputs.shape[3] // 2
+                center_x = outputs.shape[2] // 2
+                center_probs = outputs[0, :, center_x, center_y, center_z].cpu().numpy()
+
+                logging.info("=" * 60)
+                logging.info("デバッグ: 最初のサンプルの中央ピクセルの確率分布")
+                for class_id in range(len(center_probs)):
+                    class_name = organ_names.get(class_id, f"クラス{class_id}")
+                    logging.info(f"  {class_name:10s}: {center_probs[class_id]:.6f}")
+
+                # クラスごとの予測ピクセル数を確認
+                unique, counts = np.unique(preds.cpu().numpy(), return_counts=True)
+                logging.info("-" * 60)
+                logging.info("予測されたクラスの分布:")
+                for cls, count in zip(unique, counts):
+                    class_name = organ_names.get(int(cls), f"クラス{cls}")
+                    percentage = count / preds.numel() * 100
+                    logging.info(f"  {class_name:10s}: {count:8d} ピクセル ({percentage:5.2f}%)")
+                logging.info("=" * 60)
 
             # numpy変換
             preds_np = preds.cpu().numpy()
