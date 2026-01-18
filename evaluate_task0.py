@@ -41,11 +41,41 @@ def load_checkpoint(checkpoint_path, args):
     # Update args with checkpoint info
     args.update(checkpoint.get("args", {}))
 
+    # IMPORTANT: Use checkpoint's total_classes to initialize model correctly
+    # Task 0 checkpoint has 7 classes (0-6), Task 1 has 13 classes (0-12)
+    checkpoint_total_classes = checkpoint.get("total_classes", 13)
+    args["out_channels"] = checkpoint_total_classes
+    logging.info(f"Initializing model with {checkpoint_total_classes} output classes")
+
     # Create model
     model = factory.get_model(args["model_name"], args)
 
-    # Load state dict
-    model._network.load_state_dict(checkpoint["model_state_dict"])
+    # Filter checkpoint state dict to handle size mismatches
+    # (e.g., Task 0 checkpoint has 7 classes, but current model has 13)
+    checkpoint_state = checkpoint["model_state_dict"]
+    model_state = model._network.state_dict()
+
+    filtered_state = {}
+    skipped_keys = []
+
+    for key, value in checkpoint_state.items():
+        if key in model_state:
+            if value.shape == model_state[key].shape:
+                filtered_state[key] = value
+            else:
+                skipped_keys.append(f"{key} (checkpoint: {value.shape}, model: {model_state[key].shape})")
+        else:
+            skipped_keys.append(f"{key} (not in current model)")
+
+    if skipped_keys:
+        logging.info(f"Skipped {len(skipped_keys)} parameters due to size mismatch or absence:")
+        for key in skipped_keys[:5]:  # Show first 5
+            logging.info(f"  - {key}")
+        if len(skipped_keys) > 5:
+            logging.info(f"  ... and {len(skipped_keys) - 5} more")
+
+    # Load filtered state dict
+    model._network.load_state_dict(filtered_state, strict=False)
     model._cur_task = checkpoint["task_id"]
     model._known_classes = checkpoint["known_classes"]
     model._total_classes = checkpoint["total_classes"]
