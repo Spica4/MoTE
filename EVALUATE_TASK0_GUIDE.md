@@ -41,6 +41,20 @@ python evaluate_task0.py --checkpoint checkpoints/mote_seg/twostage/6/6/task_1_c
 python evaluate_task0.py --checkpoint <checkpoint_path> --device 1
 ```
 
+### 推論結果を保存
+
+```bash
+python evaluate_task0.py --checkpoint <checkpoint_path> --save-predictions
+```
+
+推論結果は`predictions/task0_evaluation/`ディレクトリにnii.gz形式で保存されます。
+
+### 保存先ディレクトリを指定
+
+```bash
+python evaluate_task0.py --checkpoint <checkpoint_path> --save-predictions --pred-dir custom_output_dir
+```
+
 ## 出力例
 
 ```
@@ -89,11 +103,27 @@ python evaluate_task0.py --checkpoint checkpoints/mote_seg/twostage/6/6/task_1_c
 
 ## 出力ファイル
 
+### 評価結果（テキスト）
+
 評価結果は自動的に保存されます：
 
 ```
 checkpoints/mote_seg/twostage/6/6/task0_evaluation_results.txt
 ```
+
+### 推論結果（nii.gz）
+
+`--save-predictions`オプションを使用した場合、推論結果が保存されます：
+
+```
+predictions/task0_evaluation/
+├── patient001_pred.nii.gz
+├── patient002_pred.nii.gz
+├── patient003_pred.nii.gz
+...
+```
+
+各予測ファイルは元の画像と同じaffineとheaderを持ち、ITK-SNAPやMedSegなどのビューアで可視化できます。
 
 ## よくある質問
 

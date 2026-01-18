@@ -15,6 +15,7 @@ import sys
 import os
 import torch
 import numpy as np
+import nibabel as nib
 from torch.utils.data import DataLoader
 from utils import factory
 from utils.medical_data_manager import MedicalDataManager
@@ -86,7 +87,7 @@ def load_checkpoint(checkpoint_path, args):
     return model, checkpoint
 
 
-def evaluate_on_kaken(model, data_manager, args):
+def evaluate_on_kaken(model, data_manager, args, save_predictions=False, pred_dir=None):
     """
     Evaluate model on Kaken (Task 0) test dataset.
 
@@ -94,6 +95,8 @@ def evaluate_on_kaken(model, data_manager, args):
         model: Trained model
         data_manager: Data manager with Kaken dataset
         args: Arguments dict
+        save_predictions: Whether to save predictions as nii.gz files
+        pred_dir: Directory to save predictions (required if save_predictions=True)
 
     Returns:
         Dictionary with evaluation results
@@ -129,6 +132,13 @@ def evaluate_on_kaken(model, data_manager, args):
 
     logging.info(f"Evaluating on Kaken test set ({len(test_dataset)} samples)...")
 
+    # Create prediction directory if saving
+    if save_predictions:
+        if pred_dir is None:
+            raise ValueError("pred_dir must be specified when save_predictions=True")
+        os.makedirs(pred_dir, exist_ok=True)
+        logging.info(f"Predictions will be saved to: {pred_dir}")
+
     # Evaluation settings
     roi_size = tuple(args.get("roi_size", [128, 128, 128]))
     sw_batch_size = args.get("sw_batch_size", 4)
@@ -157,8 +167,31 @@ def evaluate_on_kaken(model, data_manager, args):
             all_preds.append(preds.cpu().numpy())
             all_targets.append(targets.cpu().numpy())
 
+            # Save predictions as nii.gz if requested
+            if save_predictions:
+                # Get the original image path from the dataset
+                data_dict = test_loader.dataset.data_dicts[idx.item() if torch.is_tensor(idx) else idx]
+                original_img_path = data_dict["image"]
+
+                # Load original image to get affine and header
+                original_img = nib.load(original_img_path)
+                affine = original_img.affine
+                header = original_img.header
+
+                # Create nifti image from prediction
+                pred_data = preds.cpu().numpy()[0, 0, :, :, :]
+                pred_nifti = nib.Nifti1Image(pred_data.astype(np.int16), affine, header)
+
+                # Save prediction
+                pred_filename = os.path.basename(original_img_path).replace(".nii.gz", "_pred.nii.gz")
+                pred_path = os.path.join(pred_dir, pred_filename)
+                nib.save(pred_nifti, pred_path)
+
             if (batch_idx + 1) % 5 == 0:
                 logging.info(f"Processed {batch_idx + 1}/{len(test_loader)} samples")
+
+    if save_predictions:
+        logging.info(f"Saved {len(all_preds)} predictions to {pred_dir}")
 
     # Compute Dice scores for Task 0 classes (1-6)
     results = compute_task0_dice(all_preds, all_targets)
@@ -261,6 +294,17 @@ def main():
         default="0",
         help="GPU device ID (default: 0)"
     )
+    parser.add_argument(
+        "--save-predictions",
+        action="store_true",
+        help="Save predictions as nii.gz files"
+    )
+    parser.add_argument(
+        "--pred-dir",
+        type=str,
+        default=None,
+        help="Directory to save predictions (default: predictions/task0_evaluation/)"
+    )
 
     args = parser.parse_args()
 
@@ -301,8 +345,24 @@ def main():
         eval_args,
     )
 
+    # Setup prediction directory if saving
+    pred_dir = None
+    if args.save_predictions:
+        if args.pred_dir is not None:
+            pred_dir = args.pred_dir
+        else:
+            # Default: predictions/task0_evaluation/
+            pred_dir = "predictions/task0_evaluation"
+        logging.info(f"Predictions will be saved to: {pred_dir}")
+
     # Evaluate on Kaken test set
-    results = evaluate_on_kaken(model, data_manager, eval_args)
+    results = evaluate_on_kaken(
+        model,
+        data_manager,
+        eval_args,
+        save_predictions=args.save_predictions,
+        pred_dir=pred_dir
+    )
 
     # Print results
     print_results(results, args.checkpoint)
