@@ -405,6 +405,274 @@ class SegLearner(BaseSegLearner):
 
         return dice_scores
 
+    def eval_task(self):
+        """
+        Evaluate model on task-specific test sets.
+
+        For Task 1, this evaluates:
+        - Task 0 classes (1-6) on Kaken test set
+        - Task 1 classes (7-12) on AMOS22 test set
+
+        Returns:
+            cnn_accy: Dictionary with Dice scores
+            nme_accy: None (not used for segmentation)
+        """
+        if self._cur_task == 0:
+            # For Task 0, use the base implementation (evaluate on Kaken test set)
+            y_pred, y_true = self._eval_cnn(self.test_loader, save_predictions=True)
+            cnn_accy = self._evaluate_dice(y_pred, y_true)
+        else:
+            # For Task 1+, evaluate each task on its respective test set
+            logging.info("=" * 60)
+            logging.info("Task-specific evaluation:")
+            logging.info("  - Task 0 classes (1-6) on Kaken test set")
+            logging.info("  - Task 1 classes (7-12) on AMOS22 test set")
+            logging.info("=" * 60)
+
+            # Evaluate Task 0 classes (1-6) on Kaken test set
+            logging.info("\nEvaluating Task 0 classes (1-6) on Kaken test set...")
+            y_pred_task0, y_true_task0 = self._eval_task_specific(
+                task_id=0,
+                dataset_name="kaken",
+                save_predictions=True
+            )
+
+            # Evaluate Task 1 classes (7-12) on AMOS22 test set
+            logging.info("\nEvaluating Task 1 classes (7-12) on AMOS22 test set...")
+            y_pred_task1, y_true_task1 = self._eval_task_specific(
+                task_id=1,
+                dataset_name="amos22",
+                save_predictions=True
+            )
+
+            # Compute Dice scores for each task
+            task0_dice = self._compute_task_dice_list(y_pred_task0, y_true_task0, 1, 7)
+            task1_dice = self._compute_task_dice_list(y_pred_task1, y_true_task1, 7, 13)
+
+            # Combine results
+            cnn_accy = {
+                "top1": (task0_dice + task1_dice) / 2.0,  # Average of both tasks
+                "top5": (task0_dice + task1_dice) / 2.0,
+                "grouped": {
+                    "1-6": task0_dice,
+                    "7-12": task1_dice
+                }
+            }
+
+            logging.info("\n" + "=" * 60)
+            logging.info("Task-specific evaluation results:")
+            logging.info(f"  Task 0 (classes 1-6) on Kaken: {task0_dice:.2f}%")
+            logging.info(f"  Task 1 (classes 7-12) on AMOS22: {task1_dice:.2f}%")
+            logging.info(f"  Overall average: {cnn_accy['top1']:.2f}%")
+            logging.info("=" * 60)
+
+        return cnn_accy, None
+
+    def _eval_task_specific(self, task_id, dataset_name, save_predictions=False):
+        """
+        Evaluate model on a specific task's test set.
+
+        Args:
+            task_id: Task ID (0 for Kaken, 1 for AMOS22)
+            dataset_name: 'kaken' or 'amos22'
+            save_predictions: Whether to save predictions as nii.gz
+
+        Returns:
+            y_pred: List of predicted masks
+            y_true: List of ground truth masks
+        """
+        # Get the appropriate dataset from data_manager
+        if hasattr(self.data_manager._idata, dataset_name):
+            dataset_obj = getattr(self.data_manager._idata, dataset_name)
+            test_data_dicts = dataset_obj.test_data_dicts
+            test_trsf = dataset_obj.test_trsf
+        else:
+            raise ValueError(f"Dataset {dataset_name} not found in data_manager")
+
+        # Create test dataset for this task
+        from utils.medical_data_manager import MedicalDummyDataset
+        test_dataset = MedicalDummyDataset(test_data_dicts, test_trsf)
+
+        # Create test loader
+        test_loader = DataLoader(
+            test_dataset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=4,
+            pin_memory=True,
+        )
+
+        logging.info(f"Evaluating on {dataset_name} test set ({len(test_dataset)} samples)")
+
+        # Evaluate using the specific loader
+        y_pred, y_true = self._eval_cnn_task_specific(
+            test_loader,
+            task_id=task_id,
+            dataset_name=dataset_name,
+            save_predictions=save_predictions
+        )
+
+        return y_pred, y_true
+
+    def _eval_cnn_task_specific(self, loader, task_id, dataset_name, save_predictions=False):
+        """
+        Evaluate model on a specific task's test set.
+
+        Args:
+            loader: DataLoader for test data
+            task_id: Task ID for naming predictions
+            dataset_name: Dataset name for prediction directory
+            save_predictions: Whether to save predictions as nii.gz
+
+        Returns:
+            all_preds: List of predicted masks
+            all_targets: List of ground truth masks
+        """
+        self._network.eval()
+        self.dice_metric.reset()
+
+        all_preds = []
+        all_targets = []
+
+        # For CSV export
+        csv_results = []
+
+        # Organ names in Japanese (classes 1-12)
+        organ_names = [
+            "背景",  # Class 0 (background)
+            "大動脈",  # Class 1
+            "食道",  # Class 2
+            "肝臓",  # Class 3
+            "胆嚢",  # Class 4
+            "胃",  # Class 5
+            "脾臓",  # Class 6
+            "右腎臓",  # Class 7
+            "左腎臓",  # Class 8
+            "下大動脈",  # Class 9
+            "膵臓",  # Class 10
+            "膀胱",  # Class 11
+            "子宮",  # Class 12
+        ]
+
+        # Create predictions directory if saving
+        if save_predictions:
+            pred_dir = os.path.join("predictions", f"task_{self._cur_task}", f"task{task_id}_{dataset_name}")
+            os.makedirs(pred_dir, exist_ok=True)
+            logging.info(f"Saving predictions to {pred_dir}")
+
+        with torch.no_grad():
+            for batch_idx, (idx, inputs, targets) in enumerate(loader):
+                inputs = inputs.to(self._device)
+                targets = targets.to(self._device)
+
+                # Use sliding window inference
+                outputs = sliding_window_inference(
+                    inputs=inputs,
+                    roi_size=self.roi_size,
+                    sw_batch_size=self.sw_batch_size,
+                    predictor=lambda x: self._network(x, test=True),
+                    overlap=0.5,
+                )
+
+                # Get predictions
+                outputs = torch.softmax(outputs, dim=1)
+                preds = torch.argmax(outputs, dim=1, keepdim=True)
+
+                # Compute Dice
+                self.dice_metric(y_pred=preds, y=targets)
+
+                # Convert to numpy for storage
+                preds_np = preds.cpu().numpy()
+                targets_np = targets.cpu().numpy()
+
+                all_preds.append(preds_np)
+                all_targets.append(targets_np)
+
+                # Get the original image path from the dataset
+                data_dict = loader.dataset.data_dicts[idx.item() if torch.is_tensor(idx) else idx]
+                original_img_path = data_dict["image"]
+                filename = os.path.basename(original_img_path)
+
+                # Compute per-organ Dice scores for this image
+                per_organ_dice = self._compute_per_organ_dice(preds_np[0], targets_np[0])
+
+                # Store results for CSV export
+                result_row = {"filename": filename}
+                for class_id in range(1, 13):  # Classes 1-12 only
+                    organ_name = organ_names[class_id]
+                    dice_value = per_organ_dice[class_id]
+                    result_row[organ_name] = dice_value
+
+                # Compute average Dice across organs (excluding background and NaN values)
+                valid_dice_scores = [per_organ_dice[i] for i in range(1, 13) if not np.isnan(per_organ_dice[i])]
+                if valid_dice_scores:
+                    avg_dice = np.mean(valid_dice_scores)
+                else:
+                    avg_dice = 0.0
+                result_row["平均"] = avg_dice
+
+                csv_results.append(result_row)
+
+                # Save prediction as nii.gz if requested
+                if save_predictions:
+                    # Load original image to get size, affine and header
+                    original_img = nib.load(original_img_path)
+                    original_shape = original_img.shape
+                    affine = original_img.affine
+                    header = original_img.header
+
+                    # Get prediction data: [1, 1, H, W, D] -> [H, W, D]
+                    pred_data = preds_np[0, 0, :, :, :]
+
+                    # Resize prediction to original image size
+                    if pred_data.shape != original_shape:
+                        from scipy.ndimage import zoom
+
+                        # Calculate zoom factors for each dimension
+                        zoom_factors = [
+                            original_shape[0] / pred_data.shape[0],
+                            original_shape[1] / pred_data.shape[1],
+                            original_shape[2] / pred_data.shape[2],
+                        ]
+
+                        # Use nearest neighbor interpolation for segmentation labels
+                        pred_data_resized = zoom(pred_data, zoom_factors, order=0)
+
+                        logging.info(f"Resized prediction from {pred_data.shape} to {pred_data_resized.shape} (original: {original_shape})")
+                        pred_data = pred_data_resized
+
+                    # Create nifti image with original size and affine
+                    pred_nifti = nib.Nifti1Image(pred_data.astype(np.int16), affine, header)
+
+                    # Save prediction
+                    pred_filename = os.path.basename(original_img_path).replace(".nii.gz", "_pred.nii.gz")
+                    pred_path = os.path.join(pred_dir, pred_filename)
+                    nib.save(pred_nifti, pred_path)
+
+                    logging.info(f"Saved prediction [{batch_idx + 1}/{len(loader)}]: {pred_path}")
+
+        # Get per-class Dice scores
+        dice_scores = self.dice_metric.aggregate()
+
+        logging.info(f"Per-class Dice scores: {dice_scores}")
+        logging.info(f"Mean Dice: {dice_scores.mean().item():.4f}")
+
+        # Save results to CSV if we have predictions
+        if save_predictions and csv_results:
+            csv_dir = os.path.join("predictions", f"task_{self._cur_task}", f"task{task_id}_{dataset_name}")
+            csv_path = os.path.join(csv_dir, f"evaluation_results_task{task_id}_{dataset_name}.csv")
+
+            # Write CSV file
+            fieldnames = ["filename"] + [organ_names[i] for i in range(1, 13)] + ["平均"]
+            with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(csv_results)
+
+            logging.info(f"Saved evaluation results to {csv_path}")
+
+        return all_preds, all_targets
+
     def _eval_cnn(self, loader, save_predictions=False):
         """
         Evaluate model using segmentation metrics.
