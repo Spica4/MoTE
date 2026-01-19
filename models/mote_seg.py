@@ -502,16 +502,33 @@ class SegLearner(BaseSegLearner):
 
                 # Save prediction as nii.gz if requested
                 if save_predictions:
-                    # Load original image to get affine and header
+                    # Load original image to get size, affine and header
                     original_img = nib.load(original_img_path)
+                    original_shape = original_img.shape
                     affine = original_img.affine
                     header = original_img.header
 
-                    # Create nifti image from prediction
-                    # Remove batch and channel dimensions: [1, 1, H, W, D] -> [H, W, D]
+                    # Get prediction data: [1, 1, H, W, D] -> [H, W, D]
                     pred_data = preds_np[0, 0, :, :, :]
 
-                    # Create nifti image
+                    # Resize prediction to original image size
+                    if pred_data.shape != original_shape:
+                        from scipy.ndimage import zoom
+
+                        # Calculate zoom factors for each dimension
+                        zoom_factors = [
+                            original_shape[0] / pred_data.shape[0],
+                            original_shape[1] / pred_data.shape[1],
+                            original_shape[2] / pred_data.shape[2],
+                        ]
+
+                        # Use nearest neighbor interpolation for segmentation labels
+                        pred_data_resized = zoom(pred_data, zoom_factors, order=0)
+
+                        logging.info(f"Resized prediction from {pred_data.shape} to {pred_data_resized.shape} (original: {original_shape})")
+                        pred_data = pred_data_resized
+
+                    # Create nifti image with original size and affine
                     pred_nifti = nib.Nifti1Image(pred_data.astype(np.int16), affine, header)
 
                     # Save prediction
