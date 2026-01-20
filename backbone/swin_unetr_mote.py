@@ -43,7 +43,7 @@ class Adapter(nn.Module):
 
         # Down and up projections
         self.down_proj = nn.Linear(self.n_embd, self.down_size)
-        self.non_linear_func = nn.ReLU()
+        self.non_linear_func = nn.LeakyReLU(negative_slope=0.01)
         self.up_proj = nn.Linear(self.down_size, self.n_embd)
         self.dropout = dropout
 
@@ -52,7 +52,7 @@ class Adapter(nn.Module):
             with torch.no_grad():
                 nn.init.kaiming_uniform_(self.down_proj.weight, a=math.sqrt(5))
                 nn.init.zeros_(self.up_proj.weight)
-                nn.init.zeros_(self.down_proj.bias)
+                nn.init.constant_(self.down_proj.bias, 0.1)  # Small positive bias to help activation
                 nn.init.zeros_(self.up_proj.bias)
 
     def forward(self, x, add_residual=True, residual=None):
