@@ -26,16 +26,29 @@ if not adapter_keys:
 
 print(f"\nFound {len(adapter_keys)} adapter parameters")
 
+# Debug: Show sample keys to understand structure
+print("\nSample adapter keys:")
+for key in adapter_keys[:3]:
+    print(f"  {key}")
+
 # Group by adapter index
 adapters_info = {}
 for key in adapter_keys:
-    # Extract adapter index: cur_adapter.0.down_proj.weight -> adapter 0
+    # Extract adapter index from key
+    # Expected format: backbone.cur_adapter.0.down_proj.weight
+    # or: cur_adapter.0.down_proj.weight
     parts = key.split('.')
-    if len(parts) >= 2:
-        adapter_idx = int(parts[1])
-        if adapter_idx not in adapters_info:
-            adapters_info[adapter_idx] = []
-        adapters_info[adapter_idx].append(key)
+
+    # Find the index after 'cur_adapter'
+    try:
+        cur_adapter_idx = parts.index('cur_adapter')
+        if cur_adapter_idx + 1 < len(parts):
+            adapter_idx = int(parts[cur_adapter_idx + 1])
+            if adapter_idx not in adapters_info:
+                adapters_info[adapter_idx] = []
+            adapters_info[adapter_idx].append(key)
+    except (ValueError, IndexError):
+        continue
 
 print(f"Number of adapters: {len(adapters_info)}")
 
