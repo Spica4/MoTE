@@ -18,7 +18,7 @@
     "init_epochs": 100,
     "init_lr": 0.0001,
     "later_epochs": 100,
-    "later_lr": 0.0001,
+    "later_lr": 0.001,
     "batch_size": 2,
     "weight_decay": 0.0001,
     "min_lr": 1e-8,
